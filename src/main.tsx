@@ -433,17 +433,21 @@ function Tasks() {
   const filter = String(search.verdict || "all");
   const sort = String(search.sort || "newest");
   const mine = search.mine !== false && search.mine !== "false";
-  const scopeScroll = useRef<{ mine: boolean; top: number } | null>(null);
+  const filterScroll = useRef<{
+    mine: boolean;
+    verdict: string;
+    top: number;
+  } | null>(null);
   useLayoutEffect(() => {
-    const target = scopeScroll.current;
-    if (target?.mine === mine) {
+    const target = filterScroll.current;
+    if (target?.mine === mine && target.verdict === filter) {
       const frame = requestAnimationFrame(() => {
-        scopeScroll.current = null;
+        filterScroll.current = null;
         window.scrollTo({ top: target.top, behavior: "instant" });
       });
       return () => cancelAnimationFrame(frame);
     }
-  }, [mine]);
+  }, [mine, filter]);
   const [selected, setSelected] = useState("");
   const previewTimer = useRef<number | undefined>(undefined);
 
@@ -458,19 +462,16 @@ function Tasks() {
     previewTimer.current = window.setTimeout(() => setSelected(runId), 110);
   }
   const visible = usePolling();
-  const params = new URLSearchParams({
-    q,
-    sort,
-    ...(filter !== "all" ? { verdict: filter } : {}),
-  });
-  const filtersKey = params.toString();
+  const params = new URLSearchParams({ q, sort });
+  const baseKey = params.toString();
+  if (filter !== "all") params.set("verdict", filter);
   if (mine) params.set("mine", "true");
   const result = useQuery({
-    queryKey: ["runs", filtersKey, mine],
+    queryKey: ["runs", baseKey, filter, mine],
     queryFn: () => api.runs("?" + params),
-    // Keep the list in place while the new scope loads.
+    // Keep the list in place while the new scope or status loads.
     placeholderData: (previous, query) =>
-      query?.queryKey[1] === filtersKey ? previous : undefined,
+      query?.queryKey[1] === baseKey ? previous : undefined,
     refetchInterval: visible ? 15000 : false,
   });
   const me = useQuery({ queryKey: ["me"], queryFn: api.me });
@@ -494,16 +495,31 @@ function Tasks() {
     );
   }
   const chosen = runs.find((r) => r.run_id === selected) || runs[0];
-  const update = (value: Record<string, unknown>) =>
-    navigate({
+  function update(value: {
+    q?: string;
+    sort?: string;
+    mine?: boolean;
+    verdict?: string;
+  }) {
+    const preserveScroll =
+      value.mine !== undefined || value.verdict !== undefined;
+    if (preserveScroll) {
+      const nextMine = value.mine ?? mine;
+      const nextVerdict = value.verdict ?? filter;
+      if (nextMine === mine && nextVerdict === filter) return;
+      filterScroll.current = {
+        mine: nextMine,
+        verdict: nextVerdict,
+        top: window.scrollY,
+      };
+    } else {
+      filterScroll.current = null;
+    }
+    void navigate({
       to: "/tasks",
       search: { ...search, ...value },
-      resetScroll: !("mine" in value),
+      resetScroll: !preserveScroll,
     });
-  function changeScope(next: boolean) {
-    if (next === mine) return;
-    scopeScroll.current = { mine: next, top: window.scrollY };
-    void update({ mine: next });
   }
   return (
     <>
@@ -525,14 +541,14 @@ function Tasks() {
                 <button
                   className={mine ? "active" : ""}
                   aria-pressed={mine}
-                  onClick={() => changeScope(true)}
+                  onClick={() => update({ mine: true })}
                 >
                   我的任务
                 </button>
                 <button
                   className={!mine ? "active" : ""}
                   aria-pressed={!mine}
-                  onClick={() => changeScope(false)}
+                  onClick={() => update({ mine: false })}
                 >
                   全部任务
                 </button>
