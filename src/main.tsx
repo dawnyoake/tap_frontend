@@ -25,22 +25,29 @@ import {
   ArrowUpRight,
   Box,
   Check,
-  ChevronDown,
   ChevronRight,
+  CircleAlert,
+  CirclePause,
+  CircleX,
+  List,
+  PlugZap,
+  TimerOff,
+  WifiOff,
   CircleHelp,
   Clock,
-  Code2,
   Copy,
   Cpu,
   ExternalLink,
   FileText,
   Folder,
   GitBranch,
+  House,
   Layers,
   LayoutGrid,
   LoaderCircle,
   Monitor,
   MoreHorizontal,
+  Moon,
   Plus,
   RefreshCw,
   Search,
@@ -73,11 +80,30 @@ const names: Record<string, string> = {
   suspended: "已暂停",
   skipped: "已跳过",
   unknown: "未知",
+  busy: "占用中",
+  idle: "空闲可用",
+  offline: "离线",
+  uncertain: "锁状态不明",
+  "demo-submit": "演示发布",
 };
+const statusIcons: Record<string, typeof Activity> = {
+  running: Activity,
+  success: Check,
+  failed: CircleX,
+  timeout: TimerOff,
+  pending: Clock,
+  suspended: CirclePause,
+  busy: PlugZap,
+  idle: Check,
+  offline: WifiOff,
+  uncertain: CircleAlert,
+};
+
 function Badge({ status }: { status: string }) {
+  const Icon = statusIcons[status];
   return (
     <span className={`badge ${status}`}>
-      <i />
+      {Icon ? <Icon size={12} aria-hidden="true" /> : <i />}
       {names[status] || status.toUpperCase()}
     </span>
   );
@@ -122,29 +148,73 @@ function useDevices() {
     refetchInterval: visible ? 7000 : false,
   });
 }
+type Theme = "system" | "light" | "dark";
+
 function App() {
   const path = useLocation().pathname;
+  const [navigation, setNavigation] = useState<{
+    path: string;
+    motion?: "enter" | "return" | "peer";
+  }>({ path });
+  const isTaskDetail = path.startsWith("/tasks/");
+  const pageTitle =
+    path === "/hardware"
+      ? "硬件资源"
+      : path === "/submit"
+        ? "发布任务"
+        : isTaskDetail
+          ? "任务详情"
+          : "任务中心";
+  if (navigation.path !== path) {
+    const motion = isTaskDetail
+      ? "enter"
+      : navigation.path.startsWith("/tasks/") && path === "/tasks"
+        ? "return"
+        : "peer";
+    setNavigation({ path, motion });
+  }
   const [help, setHelp] = useState(false);
+  const [theme, setTheme] = useState<Theme>(() => {
+    const saved = document.documentElement.dataset.theme;
+    return saved === "light" || saved === "dark" ? saved : "system";
+  });
+
+  function changeTheme(next: Theme) {
+    setTheme(next);
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem("tee-theme", next);
+    } catch {
+      // The active theme still works when browser storage is unavailable.
+    }
+  }
   const me = useQuery({ queryKey: ["me"], queryFn: api.me });
   return (
     <div className="app">
       <aside className="sidebar">
-        <Link to="/tasks" className="brand">
+        <Link
+          to="/tasks"
+          className="brand"
+          aria-label="TEE Pipeline · 返回首页"
+        >
           <span className="brand-icon">
             <Layers size={22} />
           </span>
           <span>
             TEE <b>Pipeline</b>
-            <small>AUTOMATION WORKSPACE</small>
           </span>
         </Link>
-        <div className="workspace">
-          <span className="workspace-avatar">T</span>
-          <div>
-            研发工作空间<small>Engineering workspace</small>
-          </div>
-          <ChevronDown size={14} />
-        </div>
+        <Link
+          to="/tasks"
+          className="workspace"
+          aria-label="研发工作空间 · 返回首页"
+        >
+          <span className="workspace-avatar" aria-hidden="true">
+            T
+          </span>
+          <span>研发工作空间</span>
+          <ChevronRight size={14} aria-hidden="true" />
+        </Link>
         <div className="nav-label">工作台</div>
         <nav>
           <Link
@@ -186,26 +256,33 @@ function App() {
           </button>
           <div className="profile">
             <span className="avatar">U</span>
-            <div>
-              {me.data?.label || "当前用户"}
-              <small>研发工程师</small>
-            </div>
+            <div>{me.data?.label || "当前用户"}</div>
             <span className="online-dot" />
           </div>
         </div>
       </aside>
       <div className="shell">
         <header className="topbar">
-          <span>
-            工作空间 <ChevronRight size={13} />{" "}
-            <b>
-              {path === "/hardware"
-                ? "硬件资源"
-                : path === "/submit"
-                  ? "发布任务"
-                  : "任务中心"}
-            </b>
-          </span>
+          <div className="breadcrumbs" role="navigation" aria-label="页面位置">
+            <Link
+              to="/tasks"
+              className="breadcrumb-home"
+              aria-label="工作空间 · 返回首页"
+            >
+              <House size={15} aria-hidden="true" />
+              <span>工作空间</span>
+            </Link>
+            <ChevronRight size={13} aria-hidden="true" />
+            {isTaskDetail && (
+              <>
+                <Link to="/tasks" className="breadcrumb-parent">
+                  任务中心
+                </Link>
+                <ChevronRight size={13} aria-hidden="true" />
+              </>
+            )}
+            <b aria-current="page">{pageTitle}</b>
+          </div>
           <span className="top-right">
             <button
               className="demo-tag"
@@ -217,20 +294,27 @@ function App() {
             >
               {isDemo ? "DEMO · 演示数据" : "LIVE · 真实接口"}
             </button>
-            <span className="divider" />
-            <span className="online-dot" />
-            <span>TEE 自动化流水线</span>
+            <label className="theme-control">
+              <Moon size={14} aria-hidden="true" />
+              <select
+                aria-label="界面外观"
+                value={theme}
+                onChange={(e) => changeTheme(e.target.value as Theme)}
+              >
+                <option value="system">跟随系统</option>
+                <option value="light">浅色</option>
+                <option value="dark">深色</option>
+              </select>
+            </label>
           </span>
         </header>
         <main>
           <ErrorBox error={me.error} />
-          <Outlet />
+          <div key={path} data-page-motion={navigation.motion}>
+            <Outlet />
+          </div>
         </main>
         <footer>
-          <span>
-            TEE Pipeline <span className="footer-dot">·</span>{" "}
-            让每一次交付，都井然有序。
-          </span>
           <span className="font-credit">
             使用 HarmonyOS Sans · JetBrains Mono
           </span>
@@ -246,8 +330,7 @@ function App() {
             >
               <X />
             </button>
-            <div className="eyebrow">GETTING STARTED</div>
-            <h2>从代码到验证，一站完成。</h2>
+            <h2>使用说明</h2>
             <p>1. 发布任务：选择配置、样机和测试范围。</p>
             <p>2. 任务中心：跟踪七个阶段，查看日志与产物。</p>
             <p>3. 硬件资源：确认设备在线状态与占用情况。</p>
@@ -262,24 +345,21 @@ function App() {
   );
 }
 function PageHeading({
-  eyebrow,
   title,
   description,
   children,
 }: {
-  eyebrow: string;
   title: string;
-  description: string;
+  description?: string;
   children?: React.ReactNode;
 }) {
   return (
     <div className="page-heading">
       <div>
-        <div className="eyebrow">{eyebrow}</div>
         <h1>{title}</h1>
-        <p>{description}</p>
+        {description && <p className="mono">{description}</p>}
       </div>
-      <div className="heading-actions">{children}</div>
+      {children && <div className="heading-actions">{children}</div>}
     </div>
   );
 }
@@ -354,6 +434,18 @@ function Tasks() {
   const sort = String(search.sort || "newest");
   const mine = search.mine !== false && search.mine !== "false";
   const [selected, setSelected] = useState("");
+  const previewTimer = useRef<number | undefined>(undefined);
+
+  function cancelPreview() {
+    window.clearTimeout(previewTimer.current);
+  }
+
+  useEffect(() => cancelPreview, [q, filter, sort, mine]);
+  function previewOnHover(runId: string) {
+    cancelPreview();
+    // Ignore rows crossed on the way to another target.
+    previewTimer.current = window.setTimeout(() => setSelected(runId), 110);
+  }
   const visible = usePolling();
   const params = new URLSearchParams({
     q,
@@ -387,171 +479,171 @@ function Tasks() {
     );
   }
   const chosen = runs.find((r) => r.run_id === selected) || runs[0];
-  const detail = useQuery({
-    queryKey: ["detail", chosen?.run_id],
-    queryFn: () => api.detail(chosen!.run_id),
-    enabled: !!chosen,
-    refetchInterval: (query) =>
-      visible && query.state.data?.is_running ? 2000 : false,
-  });
   const update = (value: Record<string, unknown>) =>
     navigate({ to: "/tasks", search: { ...search, ...value } });
   return (
     <>
-      <PageHeading
-        eyebrow="YOUR WORK, IN FOCUS"
-        title="任务中心"
-        description="找到你的任务，继续关注每一次构建与验证。"
-      >
+      <PageHeading title="任务中心">
         <button className="button" onClick={() => result.refetch()}>
           <RefreshCw size={15} className={result.isFetching ? "spin" : ""} />
           刷新
         </button>
-        <Link to="/submit" className="button primary">
+        <Link to="/submit" className="button primary cta">
           <Plus size={17} />
           发布任务
         </Link>
       </PageHeading>
       <div className="workspace-grid">
-        <section className="panel tasks-panel">
-          <div className="panel-title">
-            <div className="task-scope" role="group" aria-label="任务范围">
-              <button
-                className={mine ? "active" : ""}
-                aria-pressed={mine}
-                onClick={() => update({ mine: true })}
-              >
-                我的任务
-              </button>
-              <button
-                className={!mine ? "active" : ""}
-                aria-pressed={!mine}
-                onClick={() => update({ mine: false })}
-              >
-                全部任务
-              </button>
-            </div>
-            <span className="subtle">
-              <span className="online-dot" />每 15 秒自动刷新
-            </span>
-          </div>
-          <div className="filters">
-            <label className="search">
-              <Search size={16} />
-              <input
-                aria-label="搜索任务"
-                placeholder="搜索任务 ID、分支、平台…"
-                value={q}
-                onChange={(e) => update({ q: e.target.value })}
-              />
-              {q && (
-                <button aria-label="清空搜索" onClick={() => update({ q: "" })}>
-                  <X size={14} />
-                </button>
-              )}
-            </label>
-            <select
-              aria-label="排序"
-              value={sort}
-              onChange={(e) => update({ sort: e.target.value })}
-            >
-              <option value="newest">最新优先</option>
-              <option value="oldest">最早优先</option>
-              <option value="status">按结论</option>
-            </select>
-          </div>
-          <div className="filter-tabs">
-            <div>
-              {[
-                ["all", "全部状态"],
-                ["running", "运行中"],
-                ["success", "已成功"],
-                ["failed", "已失败"],
-              ].map(([id, label]) => (
+        <div className="task-list-column">
+          <section className="panel tasks-panel">
+            <div className="panel-title">
+              <div className="task-scope" role="group" aria-label="任务范围">
                 <button
-                  key={id}
-                  className={filter === id ? "selected" : ""}
-                  onClick={() => update({ verdict: id })}
+                  className={mine ? "active" : ""}
+                  aria-pressed={mine}
+                  onClick={() => update({ mine: true })}
                 >
-                  {label}
+                  我的任务
                 </button>
-              ))}
+                <button
+                  className={!mine ? "active" : ""}
+                  aria-pressed={!mine}
+                  onClick={() => update({ mine: false })}
+                >
+                  全部任务
+                </button>
+              </div>
+              <span className="subtle">
+                <span className="online-dot" />每 15 秒自动刷新
+              </span>
+            </div>
+            <div className="filters">
+              <label className="search">
+                <Search size={16} />
+                <input
+                  aria-label="搜索任务"
+                  placeholder="搜索任务 ID、分支、平台…"
+                  value={q}
+                  onChange={(e) => update({ q: e.target.value })}
+                />
+                {q && (
+                  <button
+                    aria-label="清空搜索"
+                    onClick={() => update({ q: "" })}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </label>
               <select
-                aria-label="更多状态"
-                value={
-                  ["all", "running", "success", "failed"].includes(filter)
-                    ? ""
-                    : filter
-                }
-                onChange={(e) => update({ verdict: e.target.value || "all" })}
+                aria-label="排序"
+                value={sort}
+                onChange={(e) => update({ sort: e.target.value })}
               >
-                <option value="">更多</option>
-                {["pending", "timeout", "suspended", "skipped"].map((s) => (
-                  <option key={s} value={s}>
-                    {names[s]}
-                  </option>
-                ))}
+                <option value="newest">最新优先</option>
+                <option value="oldest">最早优先</option>
+                <option value="status">按结论</option>
               </select>
             </div>
-          </div>
-          <ErrorBox error={result.error} />
-          {result.isLoading ? (
-            <Loading />
-          ) : runs.length === 0 ? (
-            <Empty />
-          ) : (
-            <div className="task-table">
-              <div className="table-heading">
-                <span>任务 / 分支</span>
-                <span>状态</span>
-                <span>执行进度</span>
-                <span>耗时</span>
-                <span />
-              </div>
-              {runs.map((run) => (
-                <Link
-                  to="/tasks/$runId"
-                  params={{ runId: run.run_id }}
-                  className={`task-row ${chosen?.run_id === run.run_id ? "chosen" : ""}`}
-                  key={run.run_id}
-                  onMouseEnter={() => setSelected(run.run_id)}
-                  onFocus={() => setSelected(run.run_id)}
+            <div className="filter-tabs">
+              <div>
+                {[
+                  ["all", "全部状态"],
+                  ["running", "运行中"],
+                  ["success", "已成功"],
+                  ["failed", "已失败"],
+                ].map(([id, label]) => (
+                  <button
+                    key={id}
+                    className={filter === id ? "selected" : ""}
+                    onClick={() => update({ verdict: id })}
+                  >
+                    {label}
+                  </button>
+                ))}
+                <select
+                  aria-label="更多状态"
+                  value={
+                    ["all", "running", "success", "failed"].includes(filter)
+                      ? ""
+                      : filter
+                  }
+                  onChange={(e) => update({ verdict: e.target.value || "all" })}
                 >
-                  <span className="run-title">
-                    <strong>{run.run_id}</strong>
-                    <small>
-                      <GitBranch size={12} />
-                      {run.branch}
-                      <i />
-                      {run.platform}
-                    </small>
-                  </span>
-                  <span>
-                    <Badge status={run.verdict} />
-                  </span>
-                  <span>
-                    <Progress run={run} />
-                    <small className="stage-caption">
-                      {run.verdict === "success"
-                        ? "全部阶段完成"
-                        : stageLabels[run.current_stage]}
-                    </small>
-                  </span>
-                  <span className="mono time">{duration(run.duration)}</span>
-                  <ChevronRight size={15} />
-                </Link>
-              ))}
+                  <option value="">更多</option>
+                  {["pending", "timeout", "suspended", "skipped"].map((s) => (
+                    <option key={s} value={s}>
+                      {names[s]}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-          )}
-          <div className="table-footer">
-            <span>
-              {mine ? "我的任务" : "全部任务"} · {runs.length} 条记录
-            </span>
-            <span>
-              {isDemo ? "脱敏示例 · 非实时任务" : "已连接后端任务列表"}
-            </span>
-          </div>
-        </section>
+            <ErrorBox error={result.error} />
+            {result.isLoading ? (
+              <Loading />
+            ) : runs.length === 0 ? (
+              <Empty />
+            ) : (
+              <div className="task-table">
+                <div className="table-heading">
+                  <span>任务 / 分支</span>
+                  <span>状态</span>
+                  <span>执行进度</span>
+                  <span>耗时</span>
+                  <span />
+                </div>
+                {runs.map((run) => (
+                  <Link
+                    to="/tasks/$runId"
+                    params={{ runId: run.run_id }}
+                    className={`task-row ${chosen?.run_id === run.run_id ? "chosen" : ""}`}
+                    key={run.run_id}
+                    onMouseEnter={() => previewOnHover(run.run_id)}
+                    onMouseLeave={cancelPreview}
+                    onFocus={() => {
+                      cancelPreview();
+                      setSelected(run.run_id);
+                    }}
+                  >
+                    <span className="run-title">
+                      <strong>{run.run_id}</strong>
+                      <small>
+                        <GitBranch size={12} />
+                        {run.branch}
+                        <i />
+                        {run.platform}
+                      </small>
+                    </span>
+                    <span>
+                      <Badge status={run.verdict} />
+                    </span>
+                    <span>
+                      <Progress run={run} />
+                      <small className="stage-caption">
+                        {run.verdict === "success"
+                          ? "全部阶段完成"
+                          : stageLabels[run.current_stage]}
+                      </small>
+                    </span>
+                    <span className="mono time">{duration(run.duration)}</span>
+                    <span className="task-row-arrows" aria-hidden="true">
+                      <ChevronRight size={13} strokeWidth={3} />
+                      <ChevronRight size={13} strokeWidth={3} />
+                      <ChevronRight size={13} strokeWidth={3} />
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            )}
+            <div className="table-footer">
+              <span>
+                {mine ? "我的任务" : "全部任务"} · {runs.length} 条记录
+              </span>
+              <span>{isDemo && "演示数据"}</span>
+            </div>
+          </section>
+        </div>
         <aside className="panel summary-panel">
           <div className="panel-title">
             <h2>任务速览</h2>
@@ -559,75 +651,69 @@ function Tasks() {
           </div>
           {chosen ? (
             <>
-              <div className="summary-head">
-                <Badge status={chosen.verdict} />
-                <h3>{chosen.task}</h3>
-                <p className="mono">{chosen.run_id}</p>
-              </div>
-              <div className="summary-meta">
-                <span>
-                  分支
-                  <b>
-                    <GitBranch size={13} />
-                    {chosen.branch}
-                  </b>
-                </span>
-                <span>
-                  平台<b>{chosen.platform}</b>
-                </span>
-                <span>
-                  开始时间<b>{chosen.created_at?.slice(11) || "—"}</b>
-                </span>
-              </div>
-              <div className="summary-execution">
-                <div className="section-label">
-                  执行进度{" "}
+              <div className="summary-content" key={chosen.run_id}>
+                <div className="summary-head">
+                  <Badge status={chosen.verdict} />
+                  <h3>{chosen.task}</h3>
+                  <p className="mono">{chosen.run_id}</p>
+                </div>
+                <div className="summary-meta">
                   <span>
-                    {chosen.progress.done} / {chosen.progress.total}
+                    分支
+                    <b>
+                      <GitBranch size={13} />
+                      {chosen.branch}
+                    </b>
+                  </span>
+                  <span>
+                    平台<b>{chosen.platform}</b>
+                  </span>
+                  <span>
+                    开始时间<b>{chosen.created_at?.slice(11) || "—"}</b>
                   </span>
                 </div>
-                <Progress run={chosen} />
-                <div className="current-stage-card">
-                  <span className={`stage-indicator ${chosen.verdict}`}>
-                    {chosen.verdict === "running" ? (
-                      <LoaderCircle size={18} className="spin" />
-                    ) : chosen.verdict === "success" ? (
-                      <Check size={18} />
-                    ) : (
-                      <Activity size={18} />
-                    )}
-                  </span>
-                  <div>
-                    <small>
-                      {chosen.verdict === "success" ? "执行完成" : "当前阶段"}
-                    </small>
-                    <strong>
-                      {chosen.verdict === "success"
-                        ? "全部阶段已完成"
-                        : stageLabels[chosen.current_stage]}
-                    </strong>
+                <div className="summary-execution">
+                  <div className="section-label">
+                    执行进度{" "}
+                    <span>
+                      {chosen.progress.done} / {chosen.progress.total}
+                    </span>
+                  </div>
+                  <Progress run={chosen} />
+                  <div className="current-stage-card">
+                    <span className={`stage-indicator ${chosen.verdict}`}>
+                      {chosen.verdict === "running" ? (
+                        <LoaderCircle size={18} className="spin" />
+                      ) : chosen.verdict === "success" ? (
+                        <Check size={18} />
+                      ) : (
+                        <Activity size={18} />
+                      )}
+                    </span>
+                    <div>
+                      <small>
+                        {chosen.verdict === "success" ? "执行完成" : "当前阶段"}
+                      </small>
+                      <strong>
+                        {chosen.verdict === "success"
+                          ? "全部阶段已完成"
+                          : stageLabels[chosen.current_stage]}
+                      </strong>
+                    </div>
+                  </div>
+                  <div className="summary-duration">
+                    <span>累计耗时</span>
+                    <b>{duration(chosen.duration)}</b>
                   </div>
                 </div>
-                <div className="summary-duration">
-                  <span>累计耗时</span>
-                  <b>{duration(chosen.duration)}</b>
-                </div>
-                {detail.data?.stages.find((stage) => stage.error)?.error && (
-                  <ErrorBox
-                    error={
-                      detail.data.stages.find((stage) => stage.error)?.error
-                    }
-                  />
-                )}
               </div>
-              <ErrorBox error={detail.error} />
               <Link
                 to="/tasks/$runId"
                 params={{ runId: chosen.run_id }}
-                className="button full"
+                className="button primary cta cta-detail full"
               >
                 查看任务详情
-                <ArrowRight size={15} />
+                <ArrowRight className="cta-arrow" size={15} />
               </Link>
             </>
           ) : (
@@ -635,18 +721,13 @@ function Tasks() {
           )}
         </aside>
       </div>
-      <div className="bottom-note">
-        <Zap size={14} />
-        <span>点击任务直接查看详情，状态会自动更新。</span>
-        <span>构建 · 烧录 · 测试</span>
-      </div>
     </>
   );
 }
 function TaskDetail() {
   const { runId } = detailRoute.useParams();
   const search = useLocation().search as Record<string, unknown>;
-  const tab = String(search.tab || "overview");
+  const tab = String(search.tab || "stages");
   const navigate = useNavigate();
   const visible = usePolling();
   const detail = useQuery({
@@ -673,11 +754,7 @@ function TaskDetail() {
         <ArrowLeft size={14} />
         返回任务中心
       </Link>
-      <PageHeading
-        eyebrow="RUN DETAILS"
-        title={r.task || "任务详情"}
-        description={runId}
-      >
+      <PageHeading title={r.task || "任务详情"} description={runId}>
         <Badge status={r.verdict} />
         <button className="button" onClick={() => detail.refetch()}>
           <RefreshCw size={15} />
@@ -740,162 +817,154 @@ function TaskDetail() {
           </button>
         ))}
       </div>
-      {tab === "overview" ? (
-        <div className="detail-grid">
+      <div className="detail-tab-content" key={tab}>
+        {tab === "overview" ? (
+          <div className="detail-grid">
+            <section className="panel">
+              <div className="panel-title">
+                <h2>任务信息</h2>
+                <Settings2 size={16} />
+              </div>
+              <dl className="info-grid">
+                {[
+                  ["分支", r.branch],
+                  ["目标平台", r.platform],
+                  ["Change-Id", r.change_id],
+                  ["设备 SN", r.sn],
+                  ["创建时间", r.created_at],
+                  ["关键产物", r.key_artifact],
+                ].map(([label, value]) => (
+                  <div key={label}>
+                    <dt>{label}</dt>
+                    <dd>{value || "—"}</dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+            <section className="panel">
+              <div className="panel-title">
+                <h2>测试概况</h2>
+                <Activity size={16} />
+              </div>
+              {r.test_summary ? (
+                <div className="test-summary">
+                  <div
+                    className="test-ring"
+                    style={
+                      {
+                        "--progress": `${((r.test_summary.passed || 0) / (r.test_summary.total || 1)) * 100}%`,
+                      } as React.CSSProperties
+                    }
+                  >
+                    <span>
+                      <strong>
+                        {Math.round(
+                          ((r.test_summary.passed || 0) /
+                            (r.test_summary.total || 1)) *
+                            100,
+                        )}
+                        <small>%</small>
+                      </strong>
+                      <small>已通过 / 总用例</small>
+                    </span>
+                  </div>
+                  <div className="test-counts">
+                    <span>
+                      <i className="green-bg" />
+                      通过<b>{r.test_summary.passed || 0}</b>
+                    </span>
+                    <span>
+                      <i className="red-bg" />
+                      失败<b>{r.test_summary.failed || 0}</b>
+                    </span>
+                    <span>
+                      <i />
+                      未完成
+                      <b>
+                        {Math.max(
+                          0,
+                          (r.test_summary.total || 0) -
+                            (r.test_summary.passed || 0) -
+                            (r.test_summary.failed || 0),
+                        )}
+                      </b>
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <Empty text="暂无测试结果" />
+              )}
+            </section>
+          </div>
+        ) : tab === "stages" ? (
+          <div className="stage-list">
+            {stages.map((name) => {
+              const s = d.stages.find((s) => s.name === name);
+              return (
+                <section className="panel stage-panel" key={name}>
+                  <div className="panel-title">
+                    <h2>
+                      {stageLabels[name]}
+                      <small>{name}</small>
+                    </h2>
+                    <span className="stage-actions">
+                      {duration(s?.duration || 0)}
+                      <Badge status={s?.status || "pending"} />
+                    </span>
+                  </div>
+                  <ErrorBox error={s?.error} />
+                  <details>
+                    <summary>阶段参数</summary>
+                    <pre>{JSON.stringify(s?.params || {}, null, 2)}</pre>
+                  </details>
+                  <details>
+                    <summary>日志预览</summary>
+                    <pre className="terminal">{s?.log_tail || "暂无日志"}</pre>
+                  </details>
+                </section>
+              );
+            })}
+          </div>
+        ) : tab === "logs" ? (
+          <Logs detail={d} />
+        ) : tab === "artifacts" ? (
           <section className="panel">
             <div className="panel-title">
-              <h2>任务信息</h2>
-              <Settings2 size={16} />
+              <h2>构建产物</h2>
             </div>
-            <dl className="info-grid">
-              {[
-                ["分支", r.branch],
-                ["目标平台", r.platform],
-                ["Change-Id", r.change_id],
-                ["设备 SN", r.sn],
-                ["创建时间", r.created_at],
-                ["关键产物", r.key_artifact],
-              ].map(([label, value]) => (
-                <div key={label}>
-                  <dt>{label}</dt>
-                  <dd>{value || "—"}</dd>
+            {d.stages.flatMap((s) =>
+              (s.artifacts || []).map((a, i) => (
+                <div className="artifact-row" key={s.name + i}>
+                  <span className="file-icon">
+                    <Box size={20} />
+                  </span>
+                  <div>
+                    <b>{a.name}</b>
+                    <small>
+                      {stageLabels[s.name]} · {a.size || "大小未知"}
+                    </small>
+                  </div>
+                  {a.download || a.url ? (
+                    <a className="button" href={a.download || a.url}>
+                      <ArrowDownToLine size={15} />
+                      下载
+                    </a>
+                  ) : (
+                    <span className="subtle">
+                      {isDemo ? "演示产物，无下载文件" : "暂无下载链接"}
+                    </span>
+                  )}
                 </div>
-              ))}
-            </dl>
-            <div className="config-note">
-              <Code2 size={18} />
-              <div>
-                <b>全流程自动化</b>
-                <p>
-                  Prepare → Build → Upload → Publish → Trigger → Flash → Test
-                </p>
-              </div>
-            </div>
-          </section>
-          <section className="panel">
-            <div className="panel-title">
-              <h2>测试概况</h2>
-              <Activity size={16} />
-            </div>
-            {r.test_summary ? (
-              <div className="test-summary">
-                <div
-                  className="test-ring"
-                  style={
-                    {
-                      "--progress": `${((r.test_summary.passed || 0) / (r.test_summary.total || 1)) * 100}%`,
-                    } as React.CSSProperties
-                  }
-                >
-                  <span>
-                    <strong>
-                      {Math.round(
-                        ((r.test_summary.passed || 0) /
-                          (r.test_summary.total || 1)) *
-                          100,
-                      )}
-                      <small>%</small>
-                    </strong>
-                    <small>已通过 / 总用例</small>
-                  </span>
-                </div>
-                <div className="test-counts">
-                  <span>
-                    <i className="green-bg" />
-                    通过<b>{r.test_summary.passed || 0}</b>
-                  </span>
-                  <span>
-                    <i className="red-bg" />
-                    失败<b>{r.test_summary.failed || 0}</b>
-                  </span>
-                  <span>
-                    <i />
-                    未完成
-                    <b>
-                      {Math.max(
-                        0,
-                        (r.test_summary.total || 0) -
-                          (r.test_summary.passed || 0) -
-                          (r.test_summary.failed || 0),
-                      )}
-                    </b>
-                  </span>
-                </div>
-              </div>
-            ) : (
-              <Empty text="暂无测试结果，测试完成后将在此展示" />
+              )),
+            )}
+            {!d.stages.some((s) => s.artifacts?.length) && (
+              <Empty text="暂无产物" />
             )}
           </section>
-        </div>
-      ) : tab === "stages" ? (
-        <div className="stage-list">
-          {stages.map((name) => {
-            const s = d.stages.find((s) => s.name === name);
-            return (
-              <section className="panel stage-panel" key={name}>
-                <div className="panel-title">
-                  <h2>
-                    {stageLabels[name]}
-                    <small>{name}</small>
-                  </h2>
-                  <span className="stage-actions">
-                    {duration(s?.duration || 0)}
-                    <Badge status={s?.status || "pending"} />
-                  </span>
-                </div>
-                <ErrorBox error={s?.error} />
-                <details>
-                  <summary>阶段参数</summary>
-                  <pre>{JSON.stringify(s?.params || {}, null, 2)}</pre>
-                </details>
-                <details>
-                  <summary>日志预览</summary>
-                  <pre className="terminal">{s?.log_tail || "暂无日志"}</pre>
-                </details>
-              </section>
-            );
-          })}
-        </div>
-      ) : tab === "logs" ? (
-        <Logs detail={d} />
-      ) : tab === "artifacts" ? (
-        <section className="panel">
-          <div className="panel-title">
-            <h2>构建产物</h2>
-            <span className="subtle">按阶段归档</span>
-          </div>
-          {d.stages.flatMap((s) =>
-            (s.artifacts || []).map((a, i) => (
-              <div className="artifact-row" key={s.name + i}>
-                <span className="file-icon">
-                  <Box size={20} />
-                </span>
-                <div>
-                  <b>{a.name}</b>
-                  <small>
-                    {stageLabels[s.name]} · {a.size || "大小未知"}
-                  </small>
-                </div>
-                {a.download || a.url ? (
-                  <a className="button" href={a.download || a.url}>
-                    <ArrowDownToLine size={15} />
-                    下载
-                  </a>
-                ) : (
-                  <span className="subtle">
-                    {isDemo ? "演示产物，无下载文件" : "暂无下载链接"}
-                  </span>
-                )}
-              </div>
-            )),
-          )}
-          {!d.stages.some((s) => s.artifacts?.length) && (
-            <Empty text="暂无产物" />
-          )}
-        </section>
-      ) : (
-        <JsonPanel value={d.manifest} />
-      )}{" "}
+        ) : (
+          <JsonPanel value={d.manifest} />
+        )}
+      </div>
       {confirm && (
         <div className="modal-backdrop">
           <section className="modal">
@@ -1024,7 +1093,7 @@ function Logs({ detail }: { detail: Detail }) {
         {text}
       </pre>
       <div className="table-footer">
-        <span role="status">{msg || "日志内容按原始文本显示"}</span>
+        <span role="status">{msg}</span>
         <button className="text-button" onClick={() => setExpanded(!expanded)}>
           {expanded ? "收起完整日志" : "加载完整日志"}
           <ArrowDown size={14} />
@@ -1036,19 +1105,31 @@ function Logs({ detail }: { detail: Detail }) {
 function Hardware() {
   const result = useDevices();
   const [filter, setFilter] = useState("all");
+  const [compact, setCompact] = useState(
+    () => localStorage.getItem("tee-device-view") === "compact",
+  );
   const devices = result.data?.devices || [];
+  const filteredDevices = devices.filter((d) => {
+    if (filter === "idle")
+      return !d.busy && d.state !== "offline" && !d.uncertain;
+    if (filter === "busy") return d.busy;
+    if (filter === "offline") return d.state === "offline";
+    return true;
+  });
+
+  function changeDeviceView(next: boolean) {
+    setCompact(next);
+    localStorage.setItem("tee-device-view", next ? "compact" : "cards");
+  }
+
   return (
     <>
-      <PageHeading
-        eyebrow="HARDWARE RESOURCES"
-        title="硬件资源"
-        description="设备状态一目了然，让每次测试都有准备。"
-      >
+      <PageHeading title="硬件资源">
         <button className="button" onClick={() => result.refetch()}>
           <RefreshCw size={15} className={result.isFetching ? "spin" : ""} />
           刷新设备
         </button>
-        <Link to="/submit" className="button primary">
+        <Link to="/submit" className="button primary cta">
           <Plus size={16} />
           发布任务
         </Link>
@@ -1107,64 +1188,60 @@ function Hardware() {
             ))}
           </div>
         </div>
-        <span className="subtle">设备在烧录或测试期间会自动锁定</span>
+        <div className="device-view" role="group" aria-label="设备视图">
+          <button
+            aria-pressed={!compact}
+            onClick={() => changeDeviceView(false)}
+          >
+            <LayoutGrid size={14} aria-hidden="true" />
+            卡片
+          </button>
+          <button aria-pressed={compact} onClick={() => changeDeviceView(true)}>
+            <List size={14} aria-hidden="true" />
+            紧凑
+          </button>
+        </div>
       </div>
       {result.isLoading ? (
         <Loading />
+      ) : filteredDevices.length === 0 ? (
+        <Empty text="暂无匹配设备" />
       ) : (
-        <div className="devices-grid">
-          {devices
-            .filter(
-              (d) =>
-                filter === "all" ||
-                (filter === "idle" &&
-                  !d.busy &&
-                  d.state !== "offline" &&
-                  !d.uncertain) ||
-                (filter === "busy" && d.busy) ||
-                (filter === "offline" && d.state === "offline"),
-            )
-            .map((d) => (
+        <div
+          className={compact ? "devices-grid devices-compact" : "devices-grid"}
+        >
+          {filteredDevices.map((d) => {
+            const offline = d.state === "offline";
+            const availability = d.uncertain
+              ? "uncertain"
+              : d.busy
+                ? "busy"
+                : offline
+                  ? "offline"
+                  : "idle";
+            return (
               <section
-                className={`panel device-card ${d.state === "offline" ? "offline-device" : ""}`}
+                className={`panel device-card ${offline ? "offline-device" : ""}`}
                 key={d.sn}
               >
                 <div className="device-card-top">
                   <span className="device-icon">
-                    <Cpu size={24} />
+                    <Cpu size={24} aria-hidden="true" />
                   </span>
-                  <Badge status={d.state} />
+                  <h3 className="mono">{d.sn}</h3>
+                  {!offline && <Badge status={d.state} />}
                 </div>
-                <h3 className="mono">{d.sn}</h3>
-                <p>
-                  样机设备 <span>·</span> {d.raw_state}
-                </p>
+                {d.raw_state &&
+                  d.raw_state.toLowerCase() !== d.state.toLowerCase() && (
+                    <p className="device-raw-state">{d.raw_state}</p>
+                  )}
                 <div className="device-status">
-                  <span>
-                    <i
-                      className={
-                        d.busy
-                          ? "blue-bg"
-                          : d.state === "offline"
-                            ? ""
-                            : "green-bg"
-                      }
-                    />
-                    {d.busy
-                      ? "任务占用中"
-                      : d.state === "offline"
-                        ? "设备离线"
-                        : d.uncertain
-                          ? "状态待确认"
-                          : "空闲可用"}
-                  </span>
-                  <span>{stageLabels[d.busy_stage] || "—"}</span>
+                  <Badge status={availability} />
+                  {d.busy && d.busy_stage && (
+                    <strong>{stageLabels[d.busy_stage] || d.busy_stage}</strong>
+                  )}
                 </div>
-                {d.uncertain ? (
-                  <div className="warning compact">
-                    设备锁状态不确定，请检查后再使用。
-                  </div>
-                ) : d.busy ? (
+                {d.busy && d.busy_by && (
                   <Link
                     to="/tasks/$runId"
                     params={{ runId: d.busy_by }}
@@ -1173,16 +1250,10 @@ function Hardware() {
                     {d.busy_by}
                     <ArrowUpRight size={14} />
                   </Link>
-                ) : (
-                  <span className="device-link subtle">
-                    {d.state === "offline"
-                      ? "等待设备重新连接"
-                      : "准备就绪，可分配任务"}
-                    <Check size={14} />
-                  </span>
                 )}
               </section>
-            ))}
+            );
+          })}
         </div>
       )}
     </>
@@ -1226,15 +1297,8 @@ function Submit() {
   });
   return (
     <>
-      <PageHeading
-        eyebrow="CREATE A PIPELINE"
-        title="发布任务"
-        description="配置一次，自动完成从构建到测试的完整流程。"
-      >
-        <span className="subtle">
-          <span className="online-dot" />
-          {isDemo ? "演示发布，不会触发真实流水线" : "任务由后端识别当前身份"}
-        </span>
+      <PageHeading title="发布任务">
+        {isDemo && <Badge status="demo-submit" />}
       </PageHeading>
       <form
         onSubmit={(e) => {
@@ -1268,10 +1332,8 @@ function Submit() {
           <div className="form-sections">
             <section className="panel form-panel">
               <div className="form-heading">
-                <span>01</span>
                 <div>
                   <h2>基础配置</h2>
-                  <p>选择流水线配置与代码来源</p>
                 </div>
               </div>
               <ErrorBox error={configs.error || cfg.error} />
@@ -1317,10 +1379,8 @@ function Submit() {
             </section>
             <section className="panel form-panel">
               <div className="form-heading">
-                <span>02</span>
                 <div>
                   <h2>设备与测试</h2>
-                  <p>指定测试样机和需要验证的范围</p>
                 </div>
               </div>
               <label className="field">
@@ -1395,10 +1455,8 @@ function Submit() {
             </section>
             <section className="panel form-panel">
               <div className="form-heading">
-                <span>03</span>
                 <div>
                   <h2>备注</h2>
-                  <p>为本次运行留下必要的上下文</p>
                 </div>
               </div>
               <textarea
@@ -1406,7 +1464,7 @@ function Submit() {
                 rows={3}
                 value={remark}
                 onChange={(e) => setRemark(e.target.value)}
-                placeholder="例如：本次验证的目标或需要关注的问题…"
+                placeholder="任务备注（可选）"
               />
             </section>
           </div>
@@ -1420,7 +1478,7 @@ function Submit() {
                 <Layers size={18} />
               </div>
               <div className="stage-checkboxes">
-                {stages.map((s, i) => (
+                {stages.map((s) => (
                   <label key={s}>
                     <input
                       type="checkbox"
@@ -1437,7 +1495,6 @@ function Submit() {
                       {stageLabels[s]}
                       <small>{s}</small>
                     </span>
-                    <span className="stage-number">0{i + 1}</span>
                   </label>
                 ))}
               </div>
@@ -1452,7 +1509,7 @@ function Submit() {
               </div>
               <ErrorBox error={validation || submit.error} />
               <button
-                className="button primary full"
+                className="button primary cta full"
                 disabled={!cfg.data || submit.isPending}
                 type="submit"
               >
@@ -1466,7 +1523,7 @@ function Submit() {
                   : isDemo
                     ? "发布演示任务"
                     : "发布任务"}
-                <ArrowRight size={16} />
+                <ArrowRight className="cta-arrow" size={16} />
               </button>
               <button
                 type="button"
@@ -1476,12 +1533,6 @@ function Submit() {
                 重置配置
               </button>
             </section>
-            <div className="submit-hint">
-              <CircleHelp size={17} />
-              <p>
-                任务发布后将自动进入执行队列，可在任务详情中实时查看进度与日志。
-              </p>
-            </div>
           </aside>
         </div>
       </form>
@@ -1510,7 +1561,11 @@ const detailRoute = createRoute({
   path: "/tasks/$runId",
   component: TaskDetail,
   validateSearch: (s: Record<string, unknown>) => ({
-    tab: typeof s.tab === "string" ? s.tab : "overview",
+    tab:
+      typeof s.tab === "string" &&
+      ["overview", "stages", "logs", "artifacts", "manifest"].includes(s.tab)
+        ? s.tab
+        : "stages",
   }),
 });
 const submitRoute = createRoute({
