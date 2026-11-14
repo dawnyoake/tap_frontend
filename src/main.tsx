@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   QueryClient,
@@ -433,6 +433,17 @@ function Tasks() {
   const filter = String(search.verdict || "all");
   const sort = String(search.sort || "newest");
   const mine = search.mine !== false && search.mine !== "false";
+  const scopeScroll = useRef<{ mine: boolean; top: number } | null>(null);
+  useLayoutEffect(() => {
+    const target = scopeScroll.current;
+    if (target?.mine === mine) {
+      const frame = requestAnimationFrame(() => {
+        scopeScroll.current = null;
+        window.scrollTo({ top: target.top, behavior: "instant" });
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [mine]);
   const [selected, setSelected] = useState("");
   const previewTimer = useRef<number | undefined>(undefined);
 
@@ -451,11 +462,15 @@ function Tasks() {
     q,
     sort,
     ...(filter !== "all" ? { verdict: filter } : {}),
-    ...(mine ? { mine: "true" } : {}),
   });
+  const filtersKey = params.toString();
+  if (mine) params.set("mine", "true");
   const result = useQuery({
-    queryKey: ["runs", params.toString()],
+    queryKey: ["runs", filtersKey, mine],
     queryFn: () => api.runs("?" + params),
+    // Keep the list in place while the new scope loads.
+    placeholderData: (previous, query) =>
+      query?.queryKey[1] === filtersKey ? previous : undefined,
     refetchInterval: visible ? 15000 : false,
   });
   const me = useQuery({ queryKey: ["me"], queryFn: api.me });
@@ -480,7 +495,16 @@ function Tasks() {
   }
   const chosen = runs.find((r) => r.run_id === selected) || runs[0];
   const update = (value: Record<string, unknown>) =>
-    navigate({ to: "/tasks", search: { ...search, ...value } });
+    navigate({
+      to: "/tasks",
+      search: { ...search, ...value },
+      resetScroll: !("mine" in value),
+    });
+  function changeScope(next: boolean) {
+    if (next === mine) return;
+    scopeScroll.current = { mine: next, top: window.scrollY };
+    void update({ mine: next });
+  }
   return (
     <>
       <PageHeading title="任务中心">
@@ -501,14 +525,14 @@ function Tasks() {
                 <button
                   className={mine ? "active" : ""}
                   aria-pressed={mine}
-                  onClick={() => update({ mine: true })}
+                  onClick={() => changeScope(true)}
                 >
                   我的任务
                 </button>
                 <button
                   className={!mine ? "active" : ""}
                   aria-pressed={!mine}
-                  onClick={() => update({ mine: false })}
+                  onClick={() => changeScope(false)}
                 >
                   全部任务
                 </button>
@@ -607,18 +631,25 @@ function Tasks() {
                     }}
                   >
                     <span className="run-title">
-                      <strong>{run.run_id}</strong>
-                      <small>
-                        <GitBranch size={12} />
-                        {run.branch}
-                        <i />
-                        {run.platform}
+                      <strong>{run.task || run.run_id}</strong>
+                      {run.task && run.task !== run.run_id && (
+                        <span className="run-id mono">{run.run_id}</span>
+                      )}
+                      <small className="run-context">
+                        <span className="run-branch">
+                          <GitBranch size={12} aria-hidden="true" />
+                          <span>{run.branch || "—"}</span>
+                        </span>
+                        {run.platform && (
+                          <span className="run-platform">{run.platform}</span>
+                        )}
                       </small>
                     </span>
-                    <span>
+                    <span className="run-status">
                       <Badge status={run.verdict} />
                     </span>
-                    <span>
+                    <span className="run-progress">
+                      <span className="run-mobile-label">执行进度</span>
                       <Progress run={run} />
                       <small className="stage-caption">
                         {run.verdict === "success"
@@ -626,7 +657,10 @@ function Tasks() {
                           : stageLabels[run.current_stage]}
                       </small>
                     </span>
-                    <span className="mono time">{duration(run.duration)}</span>
+                    <span className="run-time mono time">
+                      <span className="run-mobile-label">耗时</span>
+                      {duration(run.duration)}
+                    </span>
                     <span className="task-row-arrows" aria-hidden="true">
                       <ChevronRight size={13} strokeWidth={3} />
                       <ChevronRight size={13} strokeWidth={3} />

@@ -569,7 +569,7 @@ input[type="checkbox"] {
 .table-heading,
 .task-row {
   display: grid;
-  grid-template-columns: minmax(174px, 1.5fr) 82px minmax(96px, 1fr) 70px 30px;
+  grid-template-columns: minmax(0, 1fr) 80px clamp(98px, 21cqi, 150px) 76px 30px;
   align-items: center;
   gap: 9px;
   text-align: left;
@@ -603,28 +603,6 @@ input[type="checkbox"] {
   bottom: 0;
   width: 3px;
   background: #5376ed;
-}
-.run-title strong {
-  font-family: var(--font-ui);
-  font-size: 13px;
-  font-weight: 500;
-  color: light-dark(#46536c, var(--text-secondary));
-  letter-spacing: -0.45px;
-}
-.run-title small {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  color: light-dark(#8995a7, var(--muted));
-  font-size: 11px;
-  margin-top: 8px;
-}
-.run-title i {
-  height: 3px;
-  width: 3px;
-  border-radius: 50%;
-  background: #ccd2dd;
-  margin: 0 3px;
 }
 .badge {
   display: inline-flex;
@@ -1611,16 +1589,6 @@ pre {
     grid-template-columns: minmax(0, 1fr) 248px;
     gap: 16px;
   }
-  .table-heading,
-  .task-row {
-    grid-template-columns: minmax(142px, 1.5fr) 67px minmax(75px, 1fr) 30px;
-    padding: 0 15px;
-    gap: 6px;
-  }
-  .table-heading > span:nth-child(4),
-  .task-row > .time {
-    display: none;
-  }
   .filters,
   .panel-title {
     padding-left: 16px;
@@ -1632,9 +1600,6 @@ pre {
   }
   .filter-tabs button {
     padding: 6px 7px;
-  }
-  .run-title strong {
-    font-size: 12px;
   }
   .host-stat {
     margin-left: 0;
@@ -1660,14 +1625,6 @@ pre {
   }
   .summary-panel {
     display: none;
-  }
-  .table-heading,
-  .task-row {
-    grid-template-columns: 1.6fr 90px 1fr 75px 30px;
-  }
-  .table-heading > span:nth-child(4),
-  .task-row > .time {
-    display: block;
   }
   .devices-grid {
     grid-template-columns: repeat(2, 1fr);
@@ -1900,28 +1857,8 @@ pre {
   .checkbox {
     font-size: 11px;
   }
-  .table-heading,
-  .task-row {
-    grid-template-columns: minmax(0, 1fr) 65px 30px;
-    padding: 0 12px;
-    gap: 5px;
-  }
-  .table-heading > span:nth-child(3),
-  .task-row > span:nth-child(3),
-  .table-heading > span:nth-child(4),
-  .task-row > .time {
-    display: none;
-  }
   .task-row {
     min-height: 72px;
-  }
-  .run-title strong {
-    font-size: 11px;
-    letter-spacing: -0.4px;
-  }
-  .run-title small {
-    font-size: 10px;
-    gap: 3px;
   }
   .badge {
     font-size: 10px;
@@ -2121,9 +2058,6 @@ h1 {
   border-radius: 5px;
   padding: 10px 16px;
 }
-.run-title strong {
-  white-space: nowrap;
-}
 .summary-head p {
   overflow-wrap: anywhere;
 }
@@ -2209,23 +2143,9 @@ footer .font-credit {
     grid-template-columns: minmax(0, 1fr) 260px;
     gap: 20px;
   }
-  .table-heading,
-  .task-row {
-    grid-template-columns: minmax(173px, 1.5fr) 76px minmax(94px, 1fr) 30px;
-    padding-left: 18px;
-    padding-right: 18px;
-    gap: 7px;
-  }
-  .table-heading > span:nth-child(4),
-  .task-row > .time {
-    display: none;
-  }
   .filter-tabs {
     flex-wrap: wrap;
     row-gap: 12px;
-  }
-  .run-title strong {
-    font-size: 12px;
   }
   .summary-meta {
     margin-left: 20px;
@@ -2245,13 +2165,6 @@ footer .font-credit {
   }
 }
 @media (max-width: 1000px) {
-  .table-heading,
-  .task-row {
-    grid-template-columns: minmax(175px, 1.6fr) 82px 1fr 75px 30px;
-  }
-  .run-title strong {
-    font-size: 12px;
-  }
   .brand {
     font-size: 16px;
   }
@@ -2263,14 +2176,6 @@ footer .font-credit {
   }
   .brand {
     gap: 0;
-  }
-  .table-heading,
-  .task-row {
-    grid-template-columns: minmax(175px, 1.5fr) 80px 1fr 30px;
-  }
-  .table-heading > span:nth-child(4),
-  .task-row > .time {
-    display: none;
   }
   .device-card {
     padding: 23px;
@@ -2313,22 +2218,8 @@ footer .font-credit {
     font-size: 11px;
     padding: 6px 5px;
   }
-  .table-heading,
-  .task-row {
-    grid-template-columns: minmax(0, 1fr) 64px 30px;
-    padding: 0 12px;
-    gap: 4px;
-  }
   .task-row {
     min-height: 82px;
-  }
-  .run-title strong {
-    font-size: 10px;
-    letter-spacing: -0.6px;
-  }
-  .run-title small {
-    font-size: 10px;
-    gap: 3px;
   }
   .badge {
     font-size: 10px;
@@ -2901,11 +2792,116 @@ footer span.font-credit {
   font-weight: 700;
 }
 @media (max-width: 560px) {
-  .task-row,
-  .table-heading {
-    grid-template-columns: minmax(0, 1fr) 69px 30px;
-  }
   .badge {
     padding-inline: 4px;
+  }
+}
+
+.task-table {
+  container: task-table / inline-size;
+}
+.task-row {
+  padding-block: 15px;
+}
+.run-title,
+.run-progress {
+  min-width: 0;
+}
+.run-title strong,
+.run-id,
+.run-context {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.run-title strong {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+.run-id,
+.run-context {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.45;
+}
+.run-context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 3px 8px;
+}
+.run-branch {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+.run-branch svg {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+.run-platform {
+  min-width: 0;
+}
+.run-progress .stage-caption {
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+.run-progress .progress-segments {
+  min-width: 0;
+}
+.run-time {
+  justify-self: end;
+  text-align: end;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.table-heading > span:nth-child(4) {
+  text-align: end;
+}
+.run-mobile-label {
+  display: none;
+}
+@container task-table (max-width: 579px) {
+  .table-heading {
+    display: none;
+  }
+  .task-row {
+    grid-template-columns: minmax(0, 1fr) max-content 30px;
+    grid-template-areas:
+      "title status arrows"
+      "progress time time";
+    align-items: start;
+    gap: 10px 8px;
+    padding: 14px 12px;
+  }
+  .run-title {
+    grid-area: title;
+  }
+  .run-status {
+    grid-area: status;
+  }
+  .task-row-arrows {
+    grid-area: arrows;
+    align-self: start;
+    margin-top: 4px;
+  }
+  .run-progress {
+    grid-area: progress;
+  }
+  .run-time {
+    grid-area: time;
+  }
+  .run-mobile-label {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--muted);
+    font-size: 10px;
+  }
+  .run-progress .stage-caption {
+    margin-top: 3px;
   }
 }
