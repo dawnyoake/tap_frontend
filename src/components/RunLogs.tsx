@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ErrorBox } from "./Feedback";
 import {
   api,
   isDemo,
   logUrl,
-  stages,
   stageLabels,
-  type Detail,
+  type Stage,
 } from "../lib/api";
-import { ArrowDown, ArrowDownToLine, Copy, Terminal } from "lucide-react";
+import { httpHref } from "../lib/artifacts";
+import { ArrowDownToLine, Copy, Terminal } from "lucide-react";
 
 async function copy(text: string, set: (s: string) => void) {
   try {
@@ -38,91 +38,106 @@ export function JsonPanel({ value }: { value: unknown }) {
     </section>
   );
 }
-export function Logs({ detail }: { detail: Detail }) {
-  const [stage, setStage] = useState(
-    detail.run_info.current_stage || "prepare",
-  );
-  const [expanded, setExpanded] = useState(false);
-  const [auto, setAuto] = useState(true);
-  const [msg, set] = useState("");
-  const ref = useRef<HTMLPreElement>(null);
-  const log = useQuery({
-    queryKey: ["log", detail.run_id, stage],
-    queryFn: () => api.log(detail.run_id, stage),
-    enabled: expanded,
+function stageLogQuery(runId: string, stage: string) {
+  return {
+    queryKey: ["log", runId, stage],
+    queryFn: () => api.log(runId, stage),
+  };
+}
+
+function colorLogPreview(text: string) {
+  return text.split(/(?<=\n)/).map((line, index) => {
+    const severity = line.match(/\[(ERROR|FATAL|WARN|WARNING)\]/)?.[1];
+    if (!severity) return line;
+    const kind = severity === "ERROR" || severity === "FATAL" ? "error" : "warning";
+    return <span className={`diagnostic-log-${kind}`} key={index}>{line}</span>;
   });
-  const text = expanded
-    ? (log.data ?? (log.isError ? "日志加载失败" : "加载中…"))
-    : detail.stages.find((s) => s.name === stage)?.log_tail || "暂无日志";
-  const displayedText = text || "暂无日志";
+}
+
+export function StageLog({
+  runId,
+  name,
+  stage,
+}: {
+  runId: string;
+  name: string;
+  stage?: Stage;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [auto, setAuto] = useState(stage?.status === "running");
+  const ref = useRef<HTMLPreElement>(null);
+  const client = useQueryClient();
+  const query = stageLogQuery(runId, name);
+  const log = useQuery({ ...query, enabled: expanded });
+  const download = useMutation({
+    mutationFn: async () => {
+      const content = await client.fetchQuery(query);
+      if (!content) throw new Error("暂无日志可下载");
+      const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `${runId}-${name}.log`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+  });
+  const fullText = expanded ? log.data : undefined;
+  const text = fullText ?? stage?.log_tail ?? "";
+  const hasLog = Boolean(
+    stage?.log_tail || stage?.log_url || stage?.log_download || stage?.log_path ||
+    (typeof stage?.log_size === "number" && stage.log_size > 0),
+  );
   useEffect(() => {
     if (auto && ref.current) ref.current.scrollTop = ref.current.scrollHeight;
   }, [text, auto]);
+
+  if (!hasLog) return <p className="diagnostic-empty">暂无阶段日志</p>;
+
+  const downloadHref = httpHref(stage?.log_download) || logUrl(runId, name, true);
   return (
-    <section className="panel log-panel">
-      <div className="panel-title">
-        <h2>
-          <Terminal size={17} />
-          运行日志
-        </h2>
-        <div className="log-actions">
-          <select
-            aria-label="日志阶段"
-            value={stage}
-            onChange={(e) => {
-              setStage(e.target.value);
-              setExpanded(false);
-            }}
-          >
-            {stages.map((s) => (
-              <option key={s} value={s}>
-                {stageLabels[s]}
-              </option>
-            ))}
-          </select>
-          <button
-            className="icon-button"
-            aria-label="复制日志"
-            disabled={expanded && (log.isPending || log.isError)}
-            onClick={() => copy(text, set)}
-          >
-            <Copy size={16} />
-          </button>
-          {!isDemo && (
-            <a
-              className="icon-button"
-              aria-label="下载日志"
-              href={logUrl(detail.run_id, stage, true)}
-            >
-              <ArrowDownToLine size={17} />
-            </a>
-          )}
+    <div className="diagnostic-log">
+      <div className="diagnostic-log-toolbar">
+        <div className="diagnostic-log-view">
+          <span className="diagnostic-log-name">
+            <Terminal size={15} aria-hidden="true" />
+            <code>{name}.log</code>
+          </span>
+          <div className="diagnostic-log-mode" role="group" aria-label="日志阅读模式">
+            <button type="button" aria-pressed={!expanded} onClick={() => setExpanded(false)}>
+              尾部预览
+            </button>
+            <button type="button" aria-pressed={expanded} onClick={() => setExpanded(true)}>
+              完整日志
+            </button>
+          </div>
         </div>
+        {isDemo ? (
+          <button type="button" className="button diagnostic-log-download" disabled={download.isPending} onClick={() => download.mutate()}>
+            <ArrowDownToLine size={15} aria-hidden="true" />
+            {download.isPending ? "正在准备…" : "下载日志"}
+          </button>
+        ) : (
+          <a className="button diagnostic-log-download" href={downloadHref} download>
+            <ArrowDownToLine size={15} aria-hidden="true" />
+            下载日志
+          </a>
+        )}
       </div>
-      <ErrorBox error={log.error} />
-      <div className="log-meta">
-        <span className="mono">
-          {stage}.log <span> / {expanded ? "完整日志" : "尾部预览"}</span>
-        </span>
+      <ErrorBox error={(expanded && log.error) || download.error} />
+      <pre ref={ref} className="terminal diagnostic-terminal" tabIndex={0} aria-label={`${stageLabels[name] || name}日志`}>
+        {text
+          ? text.length < 65536 ? colorLogPreview(text) : text
+          : log.isFetching ? "正在加载…" : "暂无日志预览"}
+      </pre>
+      <div className="diagnostic-log-footer">
         <label className="checkbox">
-          <input
-            type="checkbox"
-            checked={auto}
-            onChange={(e) => setAuto(e.target.checked)}
-          />
+          <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
           自动滚动
         </label>
+        <span role="status">{expanded && log.isFetching && "正在加载完整日志…"}</span>
       </div>
-      <pre ref={ref} className="terminal main-terminal">
-        {displayedText}
-      </pre>
-      <div className="table-footer">
-        <span role="status">{msg}</span>
-        <button className="text-button" onClick={() => setExpanded(!expanded)}>
-          {expanded ? "收起完整日志" : "加载完整日志"}
-          <ArrowDown size={14} />
-        </button>
-      </div>
-    </section>
+    </div>
   );
 }

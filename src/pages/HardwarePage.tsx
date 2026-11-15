@@ -2,9 +2,8 @@ import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Badge } from "../components/StatusBadge";
 import { Empty, ErrorBox, Loading } from "../components/Feedback";
-import { PageHeading } from "../components/PageHeading";
 import { useDevices } from "../hooks/queries";
-import { stageLabels } from "../lib/api";
+import { stageLabels, type Device } from "../lib/api";
 import {
   ArrowUpRight,
   List,
@@ -14,6 +13,33 @@ import {
   Plus,
   RefreshCw,
 } from "lucide-react";
+
+function DeviceSpecs({ device }: { device: Device }) {
+  const battery = device.battery_percent;
+  const batteryLabel = typeof battery === "number" && battery >= 0 && battery <= 100
+    ? `${battery}%`
+    : undefined;
+
+  const specs = [
+    ["当前版本", device.version],
+    ["剩余电量", batteryLabel],
+    ["芯片型号", device.chip_model],
+    ["产品型号", device.product_model],
+  ] as const;
+
+  return (
+    <dl className="device-specs">
+      {specs.map(([label, value]) => (
+        <div key={label}>
+          <dt>{label}</dt>
+          <dd className="mono">
+            {(typeof value === "string" && value.trim()) || <span aria-label="未上报" title="未上报">—</span>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
 
 export function HardwarePage() {
   const result = useDevices();
@@ -37,16 +63,6 @@ export function HardwarePage() {
 
   return (
     <>
-      <PageHeading title="硬件资源">
-        <button className="button" onClick={() => result.refetch()}>
-          <RefreshCw size={15} className={result.isFetching ? "spin" : ""} />
-          刷新设备
-        </button>
-        <Link to="/submit" className="button primary cta">
-          <Plus size={16} />
-          发布任务
-        </Link>
-      </PageHeading>
       <div className="hardware-overview panel">
         <div className="host-icon">
           <Monitor size={26} />
@@ -101,18 +117,28 @@ export function HardwarePage() {
             ))}
           </div>
         </div>
-        <div className="device-view" role="group" aria-label="设备视图">
-          <button
-            aria-pressed={!compact}
-            onClick={() => changeDeviceView(false)}
-          >
-            <LayoutGrid size={14} aria-hidden="true" />
-            卡片
+        <div className="content-actions">
+          <div className="device-view" role="group" aria-label="设备视图">
+            <button
+              aria-pressed={!compact}
+              onClick={() => changeDeviceView(false)}
+            >
+              <LayoutGrid size={14} aria-hidden="true" />
+              卡片
+            </button>
+            <button aria-pressed={compact} onClick={() => changeDeviceView(true)}>
+              <List size={14} aria-hidden="true" />
+              紧凑
+            </button>
+          </div>
+          <button className="button" onClick={() => result.refetch()}>
+            <RefreshCw size={15} className={result.isFetching ? "spin" : ""} />
+            刷新设备
           </button>
-          <button aria-pressed={compact} onClick={() => changeDeviceView(true)}>
-            <List size={14} aria-hidden="true" />
-            紧凑
-          </button>
+          <Link to="/submit" className="button primary cta">
+            <Plus size={16} />
+            发布任务
+          </Link>
         </div>
       </div>
       {result.isLoading ? (
@@ -154,6 +180,7 @@ export function HardwarePage() {
                     <strong>{stageLabels[d.busy_stage] || d.busy_stage}</strong>
                   )}
                 </div>
+                <DeviceSpecs device={d} />
                 {d.busy && d.busy_by && (
                   <Link
                     to="/tasks/$runId"

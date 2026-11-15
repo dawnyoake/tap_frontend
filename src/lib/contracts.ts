@@ -35,10 +35,15 @@ export interface Artifact {
 export interface Stage {
   name: string;
   status: Status;
+  start?: string;
+  end?: string;
   duration?: number;
   error?: string;
+  summary?: string;
   params?: unknown;
   log_tail?: string;
+  log_path?: string;
+  log_size?: number;
   log_url?: string;
   log_download?: string;
   artifacts?: Artifact[];
@@ -57,6 +62,7 @@ export interface Run {
   duration: number;
   created_at?: string;
   key_artifact?: string;
+  artifact_count?: number;
   test_summary?: Record<string, number> | null;
   stages?: Stage[];
 }
@@ -76,6 +82,10 @@ export interface Device {
   busy_by: string;
   busy_stage: string;
   uncertain: boolean;
+  version?: string | null;
+  chip_model?: string | null;
+  product_model?: string | null;
+  battery_percent?: number | null;
 }
 export interface Config {
   name: string;

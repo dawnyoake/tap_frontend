@@ -1,301 +1,386 @@
-import { useEffect, useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import { Badge } from "../components/StatusBadge";
-import { ErrorBox } from "../components/Feedback";
-import { PageHeading } from "../components/PageHeading";
-import { useDevices } from "../hooks/queries";
-import { api, isDemo, stages, stageLabels } from "../lib/api";
 import {
   ArrowRight,
-  Box,
-  GitBranch,
-  Layers,
+  Cpu,
+  FlaskConical,
+  FolderCode,
+  GitPullRequest,
   LoaderCircle,
   Plus,
+  StickyNote,
   Zap,
 } from "lucide-react";
+import { Empty, ErrorBox, Loading } from "../components/Feedback";
+import { useDevices } from "../hooks/queries";
+import { api, isDemo, stages, stageLabels } from "../lib/api";
+import type { Config, ConfigDetail, SubmitTaskInput } from "../lib/contracts";
+import { demoApi } from "../lib/demoApi";
+import "./SubmitPage.css";
 
-function parseDeviceSerials(value: string) {
-  return value
-    .split(/[,，\n]/)
-    .map((serial) => serial.trim())
-    .filter(Boolean);
+type StageName = (typeof stages)[number];
+
+function splitValues(value: string, delimiter: RegExp) {
+  return value.split(delimiter).map((item) => item.trim()).filter(Boolean);
+}
+
+function initialDraft(config: ConfigDetail) {
+  return {
+    rootMR: config.editable.root_mr || "",
+    rootCodePath: "",
+    serials: config.editable.sn.join(", "),
+    profile: config.editable.test_profile,
+    caseDrafts: { [config.editable.test_profile]: config.editable.functions.join("\n") },
+    remark: config.editable.remark || "",
+    skip: stages.filter((stage) => !config.stages.includes(stage)),
+  };
+}
+
+interface ConfigPickerProps {
+  name: string;
+  options: Config[];
+  onChange: (name: string) => void;
+  disabled?: boolean;
+}
+
+function PipelineConfig({
+  name,
+  options,
+  onChange,
+  disabled,
+  onReset,
+}: ConfigPickerProps & { onReset?: () => void }) {
+  return (
+    <section className="release-base" aria-labelledby="release-configs-title">
+      <header className="release-section-heading">
+        <h2 id="release-configs-title">任务配置</h2>
+      </header>
+      <div className="panel release-card">
+        <header>
+          <h3><label htmlFor="release-pipeline">流水线配置</label></h3>
+          {onReset && (
+            <button type="button" className="release-reset" disabled={disabled} onClick={onReset}>
+              重置配置
+            </button>
+          )}
+        </header>
+        <select id="release-pipeline" value={name} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
+          {options.map((config) => (
+            <option key={config.name} value={config.name}>
+              {!config.label || config.label === config.name || config.label === config.name.replace(/\.json$/i, "")
+                ? config.name
+                : `${config.label} · ${config.name}`}
+            </option>
+          ))}
+        </select>
+      </div>
+    </section>
+  );
 }
 
 export function SubmitPage() {
-  const navigate = useNavigate();
-  const configs = useQuery({ queryKey: ["configs"], queryFn: api.configs });
-  const devices = useDevices();
   const [name, setName] = useState("");
-  const selected = name || configs.data?.configs[0]?.name || "";
-  const cfg = useQuery({
+  const configs = useQuery({ queryKey: ["configs"], queryFn: api.configs });
+  const options = configs.data?.configs ?? [];
+  const selected = options.find((config) => config.name === name)?.name ?? options[0]?.name ?? "";
+  const config = useQuery({
     queryKey: ["config", selected],
     queryFn: () => api.config(selected),
-    enabled: !!selected,
+    enabled: Boolean(selected),
   });
-  const [rootMR, setRootMR] = useState("");
-  const [sn, setSN] = useState("");
-  const serials = parseDeviceSerials(sn);
-  const [profile, setProfile] = useState("");
-  const [functions, setFunctions] = useState("");
-  const [remark, setRemark] = useState("");
-  const [skip, setSkip] = useState<string[]>([]);
-  const [validation, setValidation] = useState("");
-  function reset() {
-    if (cfg.data) {
-      setRootMR(cfg.data.editable.root_mr || "");
-      setSN(cfg.data.editable.sn.join(", "));
-      setProfile(cfg.data.editable.test_profile);
-      setFunctions(cfg.data.editable.functions.join("\n"));
-      setRemark(cfg.data.editable.remark || "");
-      setSkip(stages.filter((s) => !cfg.data!.stages.includes(s)));
-    }
+
+  const picker = { name: selected, options, onChange: setName };
+  if (config.data) {
+    return <TaskForm key={selected} picker={picker} config={config.data} />;
   }
-  useEffect(reset, [cfg.data]);
+  return (
+    <div className="submit-workspace">
+      {selected && (
+        <div className="release-layout release-layout-loading"><PipelineConfig {...picker} /></div>
+      )}
+      <ErrorBox error={configs.error || config.error} />
+      {(configs.isPending || (selected && config.isPending)) && <Loading />}
+      {configs.isSuccess && !selected && <Empty text="暂无可用的流水线配置" />}
+    </div>
+  );
+}
+
+function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: ConfigDetail }) {
+  const [draft, setDraft] = useState(() => initialDraft(config));
   const client = useQueryClient();
+  const navigate = useNavigate();
+  const devices = useDevices();
   const submit = useMutation({
-    mutationFn: api.submit,
+    mutationFn: ({ payload, rootCodePath }: { payload: SubmitTaskInput; rootCodePath?: string }) =>
+      isDemo ? demoApi.submit(payload, rootCodePath) : api.submit(payload),
     onSuccess: ({ run_id }) => {
       client.invalidateQueries({ queryKey: ["runs"] });
       navigate({ to: "/tasks/$runId", params: { runId: run_id } });
     },
   });
+
+  const active = stages.filter((stage) => !draft.skip.includes(stage));
+  const prepare = active.includes("prepare");
+  const flash = active.includes("flash");
+  const test = active.includes("test");
+  const usesDevice = flash || test;
+  const needsRootPath = isDemo && !prepare && active.length > 0;
+  const rootCodePath = draft.rootCodePath.trim();
+  const missingPath = needsRootPath && !rootCodePath;
+  const serials = [...new Set(splitValues(draft.serials, /[,，\n]/))];
+  const availableDevices = devices.data?.devices.filter((device) =>
+    !device.busy && device.state !== "offline" && !device.uncertain,
+  ) ?? [];
+  const deviceSummary = (serials.length ? serials : config.editable.sn).join("、");
+  const caseText = Object.hasOwn(draft.caseDrafts, draft.profile)
+    ? draft.caseDrafts[draft.profile]
+    : config.profile_details[draft.profile]?.functions.join("\n") ?? "";
+  const functions = splitValues(caseText, /\n/);
+  const branch = typeof config.readonly.branch === "string" ? config.readonly.branch : "";
+  const product = typeof config.readonly.product === "string" ? config.readonly.product : "";
+  const summaries: Partial<Record<StageName, string>> = {
+    prepare: prepare
+      ? draft.rootMR.trim() || branch || "配置默认代码来源"
+      : needsRootPath
+        ? rootCodePath || "需填写 Root 代码路径"
+        : undefined,
+    build: active.includes("build")
+      ? [product, config.readonly.docker_build === true && "Docker"].filter(Boolean).join(" · ")
+      : undefined,
+    flash: flash ? deviceSummary || "未指定设备" : undefined,
+    test: test
+      ? [
+          draft.profile,
+          functions.length ? `${functions.length} 项用例` : "使用配置默认用例",
+          !flash && (deviceSummary || "未指定设备"),
+        ].filter(Boolean).join(" · ")
+      : undefined,
+  };
+
+  function updateDraft(update: Partial<typeof draft>) {
+    submit.reset();
+    setDraft((previous) => ({ ...previous, ...update }));
+  }
+
+  function toggleStage(stage: StageName, enabled: boolean) {
+    updateDraft({
+      skip: enabled ? draft.skip.filter((item) => item !== stage) : [...draft.skip, stage],
+    });
+  }
+
+  function publish(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!active.length || missingPath || submit.isPending) return;
+    submit.mutate({
+      payload: {
+        config: picker.name,
+        overrides: {
+          root_mr: prepare ? draft.rootMR.trim() : "",
+          mr_links: [],
+          sn: usesDevice ? serials : [],
+          test_profile: test ? draft.profile : "",
+          functions: test ? functions : [],
+          remark: draft.remark,
+        },
+        stages: { from_stage: "prepare", only_stage: "", skip: draft.skip },
+      },
+      rootCodePath: needsRootPath ? rootCodePath : undefined,
+    });
+  }
+
   return (
-    <>
-      <PageHeading title="发布任务">
-        {isDemo && <Badge status="demo-submit" />}
-      </PageHeading>
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (skip.length === 7) {
-            setValidation("请至少选择一个执行阶段。");
-            return;
-          }
-          setValidation("");
-          submit.mutate({
-            config: selected,
-            overrides: {
-              root_mr: rootMR,
-              mr_links: [],
-              sn: serials,
-              test_profile: profile,
-              functions: functions
-                .split("\n")
-                .map((s) => s.trim())
-                .filter(Boolean),
-              remark,
-            },
-            stages: { from_stage: "prepare", only_stage: "", skip },
-          });
-        }}
-      >
-        <div className="submit-grid">
-          <div className="form-sections">
-            <section className="panel form-panel">
-              <div className="form-heading">
-                <div>
-                  <h2>基础配置</h2>
-                </div>
-              </div>
-              <ErrorBox error={configs.error || cfg.error} />
+    <form className="submit-workspace" onSubmit={publish}>
+      <div className="release-layout">
+        <PipelineConfig
+          {...picker}
+          disabled={submit.isPending}
+          onReset={() => {
+            submit.reset();
+            setDraft(initialDraft(config));
+          }}
+        />
+        <section className="release-stage-list" aria-labelledby="release-stages-title">
+          <header className="release-section-heading">
+            <h2 id="release-stages-title">执行阶段</h2>
+            <span className="release-stage-count" aria-live="polite">执行 {active.length} / {stages.length}</span>
+          </header>
+          <ol className="panel release-stages">
+            {stages.map((stage) => {
+              const enabled = active.includes(stage);
+              const summary = summaries[stage];
+              const summaryId = `release-summary-${stage}`;
+              return (
+                <li key={stage}>
+                  <label>
+                    <span className="release-stage-name">{stageLabels[stage]}</span>
+                    {summary && (
+                      <small id={summaryId} className={stage === "prepare" && missingPath ? "release-problem" : undefined}>
+                        {summary}
+                      </small>
+                    )}
+                    <span className="release-stage-toggle">
+                      <span aria-hidden="true">{enabled ? "执行" : "跳过"}</span>
+                      <input
+                        type="checkbox"
+                        role="switch"
+                        aria-label={stageLabels[stage]}
+                        aria-describedby={summary ? summaryId : undefined}
+                        checked={enabled}
+                        disabled={submit.isPending}
+                        onChange={(event) => toggleStage(stage, event.target.checked)}
+                      />
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+          </ol>
+          {!flash && test && <p className="release-warning">自动测试将使用设备现有镜像。</p>}
+        </section>
+
+        <div className="release-configs">
+          {needsRootPath && (
+            <section className={`panel release-card release-path${missingPath ? " needs-value" : ""}`} aria-labelledby="release-path-title">
+              <header>
+                <h3 id="release-path-title"><FolderCode size={17} aria-hidden="true" />Root 代码路径</h3>
+                <span>必填</span>
+              </header>
+              <p id="release-path-help">已跳过环境准备。填写已有代码的根目录，例如 <code>D:\work\tee-root</code>。</p>
+              <input
+                aria-labelledby="release-path-title"
+                aria-describedby={missingPath ? "release-path-help release-path-error" : "release-path-help"}
+                aria-invalid={missingPath}
+                required
+                spellCheck={false}
+                value={draft.rootCodePath}
+                disabled={submit.isPending}
+                onChange={(event) => updateDraft({ rootCodePath: event.target.value })}
+              />
+              {missingPath && <p id="release-path-error" className="release-problem">请填写 Root 代码路径。</p>}
+            </section>
+          )}
+          {prepare && (
+            <section className="panel release-card" aria-labelledby="release-source-title">
+              <header>
+                <h3 id="release-source-title"><GitPullRequest size={17} aria-hidden="true" />代码来源</h3>
+                <span>环境准备</span>
+              </header>
               <label className="field">
-                流水线配置 <em>*</em>
-                <select
-                  required
-                  value={selected}
-                  onChange={(e) => setName(e.target.value)}
-                >
-                  <option value="" disabled>
-                    请选择配置
-                  </option>
-                  {configs.data?.configs.map((c) => (
-                    <option key={c.name} value={c.name}>
-                      {c.label} · {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              {cfg.data && (
-                <div className="config-preview">
-                  <span>
-                    <GitBranch size={14} />
-                    {String(cfg.data.readonly.branch || "—")}
-                  </span>
-                  <span>
-                    <Box size={14} />
-                    {String(cfg.data.readonly.product || "—")}
-                  </span>
-                  <span>Docker 构建</span>
-                </div>
-              )}
-              <label className="field">
-                Root MR
+                Root MR <span className="release-muted">（可选）</span>
                 <input
-                  value={rootMR}
-                  onChange={(e) => setRootMR(e.target.value)}
-                  placeholder="输入 Root MR 或链接（可选）"
+                  value={draft.rootMR}
+                  disabled={submit.isPending}
+                  onChange={(event) => updateDraft({ rootMR: event.target.value })}
+                  placeholder="输入 MR 编号或链接"
                 />
-                <small>留空将使用配置中的默认代码来源。</small>
+                <small>留空时使用流水线配置的默认代码来源。</small>
               </label>
             </section>
-            <section className="panel form-panel">
-              <div className="form-heading">
-                <div>
-                  <h2>设备与测试</h2>
-                </div>
-              </div>
+          )}
+          {!isDemo && !prepare && active.length > 0 && (
+            <p className="release-warning">已跳过环境准备。真实接口按流水线配置处理代码来源。</p>
+          )}
+          {usesDevice && (
+            <section className="panel release-card" aria-labelledby="release-device-title">
+              <header>
+                <h3 id="release-device-title"><Cpu size={17} aria-hidden="true" />目标设备</h3>
+                <span>{[flash && "设备烧录", test && "自动测试"].filter(Boolean).join(" / ")}</span>
+              </header>
               <label className="field">
                 样机 SN
                 <input
-                  value={sn}
-                  onChange={(e) => setSN(e.target.value)}
-                  placeholder="输入设备 SN，多个设备以逗号分隔"
+                  value={draft.serials}
+                  disabled={submit.isPending}
+                  onChange={(event) => updateDraft({ serials: event.target.value })}
+                  placeholder="多个设备以逗号分隔"
                 />
+                {config.editable.sn.length > 0 && <small>留空时使用配置默认设备。</small>}
               </label>
-              <div className="device-choices">
-                <span>在线可用</span>
-                {devices.data?.devices
-                  .filter(
-                    (d) => !d.busy && d.state !== "offline" && !d.uncertain,
-                  )
-                  .map((d) => (
+              {availableDevices.length > 0 && (
+                <div className="device-choices">
+                  <span>在线可用</span>
+                  {availableDevices.map(({ sn }) => (
                     <button
-                      key={d.sn}
+                      key={sn}
                       type="button"
-                      className={serials.includes(d.sn) ? "selected" : ""}
-                      onClick={() =>
-                        setSN((old) => {
-                          const values = parseDeviceSerials(old);
-                          return (
-                            values.includes(d.sn)
-                              ? values.filter((s) => s !== d.sn)
-                              : [...values, d.sn]
-                          ).join(", ");
-                        })
-                      }
+                      aria-pressed={serials.includes(sn)}
+                      className={serials.includes(sn) ? "selected" : ""}
+                      disabled={submit.isPending}
+                      onClick={() => updateDraft({
+                        serials: (serials.includes(sn) ? serials.filter((value) => value !== sn) : [...serials, sn]).join(", "),
+                      })}
                     >
-                      <Plus size={12} />
-                      {d.sn}
+                      <Plus size={12} aria-hidden="true" />{sn}
                     </button>
                   ))}
-              </div>
-              <ErrorBox error={devices.error || devices.data?.error} />
-              <label className="field">
-                测试 Profile
-                <select
-                  value={profile}
-                  onChange={(e) => {
-                    setProfile(e.target.value);
-                    setFunctions(
-                      cfg.data?.profile_details[e.target.value]?.functions.join(
-                        "\n",
-                      ) || "",
-                    );
-                  }}
-                >
-                  {cfg.data?.test_profiles.map((p) => (
-                    <option key={p}>{p}</option>
-                  ))}
-                </select>
-              </label>
-              <label className="field">
-                测试用例
-                <textarea
-                  rows={3}
-                  value={functions}
-                  onChange={(e) => setFunctions(e.target.value)}
-                  placeholder="每行一个用例"
-                />
-                <small>
-                  切换 Profile 会自动带入默认用例，你也可以手动调整。
-                </small>
-              </label>
-            </section>
-            <section className="panel form-panel">
-              <div className="form-heading">
-                <div>
-                  <h2>备注</h2>
-                </div>
-              </div>
-              <textarea
-                aria-label="备注"
-                rows={3}
-                value={remark}
-                onChange={(e) => setRemark(e.target.value)}
-                placeholder="任务备注（可选）"
-              />
-            </section>
-          </div>
-          <aside className="submit-side">
-            <section className="panel form-panel">
-              <div className="form-heading">
-                <div>
-                  <h2>执行阶段</h2>
-                  <p>默认执行全流程，可按需跳过</p>
-                </div>
-                <Layers size={18} />
-              </div>
-              <div className="stage-checkboxes">
-                {stages.map((s) => (
-                  <label key={s}>
-                    <input
-                      type="checkbox"
-                      checked={!skip.includes(s)}
-                      onChange={(e) =>
-                        setSkip(
-                          e.target.checked
-                            ? skip.filter((v) => v !== s)
-                            : [...skip, s],
-                        )
-                      }
-                    />
-                    <span>
-                      {stageLabels[s]}
-                      <small>{s}</small>
-                    </span>
-                  </label>
-                ))}
-              </div>
-              {skip.includes("flash") && (
-                <div className="warning">
-                  已跳过烧录，测试将基于设备现有镜像运行。
                 </div>
               )}
-              <div className="submit-total">
-                <span>即将执行</span>
-                <b>{7 - skip.length} 个阶段</b>
-              </div>
-              <ErrorBox error={validation || submit.error} />
-              <button
-                className="button primary cta full"
-                disabled={!cfg.data || submit.isPending}
-                type="submit"
-              >
-                {submit.isPending ? (
-                  <LoaderCircle size={17} className="spin" />
-                ) : (
-                  <Zap size={17} />
-                )}{" "}
-                {submit.isPending
-                  ? "正在发布…"
-                  : isDemo
-                    ? "发布演示任务"
-                    : "发布任务"}
-                <ArrowRight className="cta-arrow" size={16} />
-              </button>
-              <button
-                type="button"
-                className="button ghost full"
-                onClick={reset}
-              >
-                重置配置
-              </button>
+              <ErrorBox error={devices.error || devices.data?.error} />
             </section>
-          </aside>
+          )}
+          {test && (
+            <section className="panel release-card" aria-labelledby="release-test-title">
+              <header>
+                <h3 id="release-test-title"><FlaskConical size={17} aria-hidden="true" />测试配置</h3>
+              </header>
+              <div className="release-test-fields">
+                <label className="field">
+                  测试 Profile
+                  <select
+                    value={draft.profile}
+                    disabled={submit.isPending}
+                    onChange={(event) => updateDraft({ profile: event.target.value })}
+                  >
+                    {!config.test_profiles.includes(config.editable.test_profile) && (
+                      <option value={config.editable.test_profile}>
+                        {config.editable.test_profile || "使用配置默认值"}
+                      </option>
+                    )}
+                    {config.test_profiles.map((profile) => <option key={profile}>{profile}</option>)}
+                  </select>
+                </label>
+                <label className="field">
+                  测试用例
+                  <textarea
+                    rows={3}
+                    value={caseText}
+                    disabled={submit.isPending}
+                    onChange={(event) => updateDraft({
+                      caseDrafts: { ...draft.caseDrafts, [draft.profile]: event.target.value },
+                    })}
+                    placeholder="每行一个用例"
+                  />
+                </label>
+              </div>
+              <p>各 Profile 分别保留编辑内容。清空用例时沿用配置默认值。</p>
+            </section>
+          )}
+          <section className="panel release-card" aria-labelledby="release-remark-title">
+            <header>
+              <h3 id="release-remark-title"><StickyNote size={17} aria-hidden="true" />备注</h3>
+              <span>可选</span>
+            </header>
+            <textarea
+              aria-labelledby="release-remark-title"
+              rows={3}
+              value={draft.remark}
+              disabled={submit.isPending}
+              onChange={(event) => updateDraft({ remark: event.target.value })}
+            />
+          </section>
         </div>
-      </form>
-    </>
+
+        <div className="release-publish">
+          {!active.length && <p className="release-warning" role="alert">请至少将一个阶段设为「执行」。</p>}
+          <ErrorBox error={submit.error} />
+          <button className="button primary cta full" type="submit" disabled={!active.length || missingPath || submit.isPending}>
+            {submit.isPending ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <Zap size={17} aria-hidden="true" />}
+            {submit.isPending ? "正在发布…" : isDemo ? "发布演示任务" : "发布任务"}
+            <ArrowRight className="cta-arrow" size={16} aria-hidden="true" />
+          </button>
+        </div>
+      </div>
+    </form>
   );
 }

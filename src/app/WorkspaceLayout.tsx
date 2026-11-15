@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ErrorBox } from "../components/Feedback";
+import { ThemeMenu } from "../components/ThemeMenu";
 import { api, isDemo } from "../lib/api";
 import {
   ArrowUpRight,
@@ -11,24 +12,23 @@ import {
   House,
   Layers,
   LayoutGrid,
-  Moon,
   Plus,
   X,
 } from "lucide-react";
 
-type Theme = "system" | "light" | "dark";
-
 export function WorkspaceLayout() {
   const path = useLocation().pathname;
+  const isHome = path === "/";
   const [navigation, setNavigation] = useState<{
     path: string;
     motion?: "enter" | "return" | "peer";
   }>({ path });
   const isTaskDetail = path.startsWith("/tasks/");
+  const isSubmit = path === "/submit";
   const pageTitle =
     path === "/hardware"
       ? "硬件资源"
-      : path === "/submit"
+      : isSubmit
         ? "发布任务"
         : isTaskDetail
           ? "任务详情"
@@ -42,28 +42,15 @@ export function WorkspaceLayout() {
     setNavigation({ path, motion });
   }
   const [help, setHelp] = useState(false);
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = document.documentElement.dataset.theme;
-    return saved === "light" || saved === "dark" ? saved : "system";
-  });
-
-  function changeTheme(next: Theme) {
-    setTheme(next);
-    document.documentElement.dataset.theme = next;
-    try {
-      localStorage.setItem("tee-theme", next);
-    } catch {
-      // The active theme still works when browser storage is unavailable.
-    }
-  }
   const me = useQuery({ queryKey: ["me"], queryFn: api.me });
   return (
-    <div className="app">
+    <div className={isHome ? "app app-home" : "app"}>
       <aside className="sidebar">
         <Link
-          to="/tasks"
+          to="/"
           className="brand"
           aria-label="TEE Pipeline · 返回首页"
+          activeOptions={{ exact: true }}
         >
           <span className="brand-icon">
             <Layers size={22} />
@@ -72,19 +59,7 @@ export function WorkspaceLayout() {
             TEE <b>Pipeline</b>
           </span>
         </Link>
-        <Link
-          to="/tasks"
-          className="workspace"
-          aria-label="研发工作空间 · 返回首页"
-        >
-          <span className="workspace-avatar" aria-hidden="true">
-            T
-          </span>
-          <span>研发工作空间</span>
-          <ChevronRight size={14} aria-hidden="true" />
-        </Link>
-        <div className="nav-label">工作台</div>
-        <nav>
+        <nav aria-label="工作台">
           <Link
             to="/tasks"
             className={path.startsWith("/tasks") ? "active" : ""}
@@ -130,10 +105,14 @@ export function WorkspaceLayout() {
         </div>
       </aside>
       <div className="shell">
-        <header className="topbar">
-          <div className="breadcrumbs" role="navigation" aria-label="页面位置">
+        <header className="topbar" hidden={isHome}>
+          <div
+            className={isTaskDetail ? "breadcrumbs breadcrumbs-detail" : "breadcrumbs"}
+            role="navigation"
+            aria-label="页面位置"
+          >
             <Link
-              to="/tasks"
+              to="/"
               className="breadcrumb-home"
               aria-label="工作空间 · 返回首页"
             >
@@ -149,9 +128,9 @@ export function WorkspaceLayout() {
                 <ChevronRight size={13} aria-hidden="true" />
               </>
             )}
-            <b aria-current="page">{pageTitle}</b>
+            <h1 aria-current="page">{pageTitle}</h1>
           </div>
-          <span className="top-right">
+          <div className="top-right">
             <button
               className="demo-tag"
               title="切换演示与真实接口"
@@ -162,27 +141,16 @@ export function WorkspaceLayout() {
             >
               {isDemo ? "DEMO · 演示数据" : "LIVE · 真实接口"}
             </button>
-            <label className="theme-control">
-              <Moon size={14} aria-hidden="true" />
-              <select
-                aria-label="界面外观"
-                value={theme}
-                onChange={(e) => changeTheme(e.target.value as Theme)}
-              >
-                <option value="system">跟随系统</option>
-                <option value="light">浅色</option>
-                <option value="dark">深色</option>
-              </select>
-            </label>
-          </span>
+            <ThemeMenu />
+          </div>
         </header>
-        <main>
-          <ErrorBox error={me.error} />
-          <div key={path} data-page-motion={navigation.motion}>
+        <main className={isHome ? "home-main" : undefined}>
+          {!isHome && <ErrorBox error={me.error} />}
+          <div key={path} data-page-motion={isHome ? undefined : navigation.motion}>
             <Outlet />
           </div>
         </main>
-        <footer>
+        <footer hidden={isHome}>
           <span className="font-credit">
             使用 HarmonyOS Sans · JetBrains Mono
           </span>

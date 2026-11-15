@@ -1,34 +1,45 @@
-import { useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   getRouteApi,
-  Link,
-  useLocation,
   useNavigate,
 } from "@tanstack/react-router";
 import { Badge } from "../components/StatusBadge";
 import { Empty, ErrorBox, Loading } from "../components/Feedback";
-import { PageHeading } from "../components/PageHeading";
 import { Pipeline } from "../components/RunProgress";
-import { Logs, JsonPanel } from "../components/RunLogs";
+import { JsonPanel } from "../components/RunLogs";
+import { StageDetails } from "../components/StageDetails";
 import { usePolling } from "../hooks/queries";
 import { api, isDemo, stages, stageLabels, duration } from "../lib/api";
+import { artifactDownloadHref } from "../lib/artifacts";
+import { findFaultStage, isStageFault, type StageName } from "../lib/runStages";
 import {
   Activity,
   ArrowDownToLine,
-  ArrowLeft,
+  ArrowDownRight,
   Box,
+  CircleAlert,
+  Clock3,
   RefreshCw,
   Settings2,
   Trash2,
 } from "lucide-react";
+import "./TaskDetailPage.css";
+
+const detailRoute = getRouteApi("/tasks/$runId");
+
+function focusStage(target: HTMLElement) {
+  const details = target.querySelector("details");
+  if (details) details.open = true;
+  target.focus({ preventScroll: true });
+  target.scrollIntoView({ block: "start" });
+}
 
 export function TaskDetailPage() {
-  const { runId } = getRouteApi("/tasks/$runId").useParams() as {
-    runId: string;
-  };
-  const search = useLocation().search as Record<string, unknown>;
-  const tab = String(search.tab || "stages");
+  const { runId } = detailRoute.useParams();
+  const { tab, stage } = detailRoute.useSearch();
+  const focusedStage = tab === "stages" ? stage : undefined;
+  const stageTarget = useRef<HTMLElement>(null);
   const navigate = useNavigate();
   const visible = usePolling();
   const detail = useQuery({
@@ -37,6 +48,13 @@ export function TaskDetailPage() {
     refetchInterval: (q) =>
       visible && q.state.data?.is_running ? 2000 : false,
   });
+  const hasDetail = Boolean(detail.data);
+  useEffect(() => {
+    const target = stageTarget.current;
+    if (!hasDetail || !focusedStage || !target) return;
+    const frame = requestAnimationFrame(() => focusStage(target));
+    return () => cancelAnimationFrame(frame);
+  }, [hasDetail, focusedStage, runId]);
   const [confirm, setConfirm] = useState(false);
   const client = useQueryClient();
   const remove = useMutation({
@@ -50,54 +68,77 @@ export function TaskDetailPage() {
   if (!detail.data) return <ErrorBox error={detail.error} />;
   const d = detail.data,
     r = d.run_info;
+  const fault = findFaultStage(r, d.stages);
+  const faultStage = d.stages.find((item) => item.name === fault);
+  const faultStatus = isStageFault(faultStage?.status) ? faultStage.status : r.verdict;
+  const selectedStage = tab === "stages" ? focusedStage || fault : undefined;
+
+  function jumpToStage(name: StageName) {
+    if (name === focusedStage && stageTarget.current) {
+      focusStage(stageTarget.current);
+      return;
+    }
+    void navigate({
+      to: "/tasks/$runId",
+      params: { runId },
+      search: { tab: "stages", stage: name },
+      resetScroll: false,
+    });
+  }
+
   return (
     <>
-      <Link to="/tasks" className="back-link">
-        <ArrowLeft size={14} />
-        返回任务中心
-      </Link>
-      <PageHeading title={r.task || "任务详情"} description={runId}>
-        <Badge status={r.verdict} />
-        <button className="button" onClick={() => detail.refetch()}>
-          <RefreshCw size={15} />
-          刷新
-        </button>
-        <button
-          className="icon-button"
-          aria-label="删除任务"
-          disabled={d.is_running}
-          onClick={() => setConfirm(true)}
-        >
-          <Trash2 size={17} />
-        </button>
-      </PageHeading>
       <ErrorBox error={detail.error} />
-      <section className="panel detail-banner">
-        <div className="detail-metrics">
-          <span>
-            执行进度
-            <strong>
-              {r.progress.done}
-              <small> / {r.progress.total}</small>
-            </strong>
-          </span>
-          <span>
-            当前阶段<strong>{stageLabels[r.current_stage] || "—"}</strong>
-          </span>
-          <span>
-            运行耗时<strong className="mono">{duration(r.duration)}</strong>
-          </span>
-          <span>
-            提交者<strong>{r.owner || "—"}</strong>
-          </span>
-        </div>
-        <Pipeline detail={d} />
+      <section className="panel detail-banner diagnostic-banner">
+        <header className="detail-task-header">
+          <div className="detail-task-identity">
+            {r.task && r.task !== runId && <h2>{r.task}</h2>}
+            <span className="mono">{runId}</span>
+            <Badge status={r.verdict} />
+          </div>
+          <div className="content-actions">
+            <button className="button" onClick={() => detail.refetch()}>
+              <RefreshCw size={15} className={detail.isFetching ? "spin" : ""} />
+              刷新
+            </button>
+            <button
+              className="icon-button"
+              aria-label="删除任务"
+              disabled={d.is_running}
+              onClick={() => setConfirm(true)}
+            >
+              <Trash2 size={17} />
+            </button>
+          </div>
+        </header>
+        <dl className="diagnostic-metrics">
+          <div><dt>进度</dt><dd>{r.progress.done} / {r.progress.total}</dd></div>
+          <div><dt>运行耗时</dt><dd className="mono">{duration(r.duration)}</dd></div>
+          {r.owner && <div><dt>提交者</dt><dd>{r.owner}</dd></div>}
+        </dl>
+        {fault && (
+          <div className={`diagnostic-fault ${faultStatus}`}>
+            {faultStatus === "timeout" ? <Clock3 size={19} aria-hidden="true" /> : <CircleAlert size={19} aria-hidden="true" />}
+            <div>
+              <strong>{stageLabels[fault]}{faultStatus === "timeout" ? "超时" : "失败"}</strong>
+              {(faultStage?.error || faultStage?.summary) && <p>{faultStage.error || faultStage.summary}</p>}
+            </div>
+            <button type="button" className="button" onClick={() => jumpToStage(fault)}>
+              查看故障阶段 <ArrowDownRight size={15} aria-hidden="true" />
+            </button>
+          </div>
+        )}
+        <Pipeline
+          detail={d}
+          fault={fault ? { name: fault, status: faultStatus } : undefined}
+          selected={selectedStage}
+          onStageSelect={jumpToStage}
+        />
       </section>
       <div className="detail-tabs">
         {[
           ["overview", "概览"],
           ["stages", "阶段详情"],
-          ["logs", "运行日志"],
           ["artifacts", "产物"],
           ["manifest", "DEBUG"],
         ].map(([id, label]) => (
@@ -203,61 +244,50 @@ export function TaskDetailPage() {
             {stages.map((name) => {
               const s = d.stages.find((s) => s.name === name);
               return (
-                <section className="panel stage-panel" key={name}>
-                  <div className="panel-title">
-                    <h2>
-                      {stageLabels[name]}
-                      <small>{name}</small>
-                    </h2>
-                    <span className="stage-actions">
-                      {duration(s?.duration || 0)}
-                      <Badge status={s?.status || "pending"} />
-                    </span>
-                  </div>
-                  <ErrorBox error={s?.error} />
-                  <details>
-                    <summary>阶段参数</summary>
-                    <pre>{JSON.stringify(s?.params || {}, null, 2)}</pre>
-                  </details>
-                  <details>
-                    <summary>日志预览</summary>
-                    <pre className="terminal">{s?.log_tail || "暂无日志"}</pre>
-                  </details>
-                </section>
+                <StageDetails
+                  key={name}
+                  name={name}
+                  runId={runId}
+                  stage={s}
+                  status={name === fault ? faultStatus : s?.status || "pending"}
+                  selected={name === selectedStage}
+                  targetRef={name === focusedStage ? stageTarget : undefined}
+                />
               );
             })}
           </div>
-        ) : tab === "logs" ? (
-          <Logs detail={d} />
         ) : tab === "artifacts" ? (
           <section className="panel">
             <div className="panel-title">
-              <h2>构建产物</h2>
+              <h2>任务产物</h2>
             </div>
             {d.stages.flatMap((s) =>
-              (s.artifacts || []).map((a, i) => (
-                <div className="artifact-row" key={s.name + i}>
-                  <span className="file-icon">
-                    <Box size={20} />
-                  </span>
-                  <div>
-                    <b>{a.name}</b>
-                    <small>
-                      {stageLabels[s.name]} · {a.size || "大小未知"}
-                    </small>
-                  </div>
-                  {a.download || a.url ? (
-                    <a className="button" href={a.download || a.url}>
-                      <ArrowDownToLine size={15} />
-                      下载
-                    </a>
-                  ) : (
-                    <span className="subtle">
-                      {isDemo ? "演示产物，无下载文件" : "暂无下载链接"}
+              (s.artifacts || []).map((a, i) => {
+                const href = artifactDownloadHref(a);
+                return (
+                  <div className="artifact-row" key={s.name + i}>
+                    <span className="file-icon">
+                      <Box size={20} />
                     </span>
-                  )}
-                </div>
-              )),
+                    <div>
+                      <b>{a.name}</b>
+                      <small>
+                        {stageLabels[s.name]} · {a.size || "大小未知"}
+                      </small>
+                    </div>
+                    {href ? (
+                      <a className="button" href={href} download>
+                        <ArrowDownToLine size={15} />
+                        下载
+                      </a>
+                    ) : (
+                      <span className="subtle">
+                        {isDemo ? "演示产物，无下载文件" : "暂无下载链接"}
+                      </span>
+                    )}
+                  </div>
+                );
+              }),
             )}
             {!d.stages.some((s) => s.artifacts?.length) && (
               <Empty text="暂无产物" />

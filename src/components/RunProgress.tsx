@@ -5,8 +5,10 @@ import {
   duration,
   type Run,
   type Detail,
+  type Status,
 } from "../lib/api";
-import { Check, LoaderCircle, X } from "lucide-react";
+import { isStageFault, type StageName } from "../lib/runStages";
+import { Check, Clock3, LoaderCircle, X } from "lucide-react";
 
 export function Progress({ run }: { run: Run }) {
   return (
@@ -34,38 +36,48 @@ export function Progress({ run }: { run: Run }) {
 }
 export function Pipeline({
   detail,
-  compact = false,
+  fault,
+  selected,
+  onStageSelect,
 }: {
   detail: Detail;
-  compact?: boolean;
+  fault?: { name: StageName; status: Status };
+  selected?: StageName;
+  onStageSelect: (name: StageName) => void;
 }) {
   return (
-    <div className={compact ? "pipeline vertical" : "pipeline"}>
+    <div className="pipeline diagnostic-pipeline" role="group" aria-label="流水线阶段">
       {stages.map((name, i) => {
         const s = detail.stages.find((s) => s.name === name);
+        const status = fault?.name === name ? fault.status : s?.status || "pending";
+        const caption = isStageFault(status) || !s?.duration
+          ? statusLabels[status]
+          : duration(s.duration);
         return (
-          <div className={`pipeline-step ${s?.status || "pending"}`} key={name}>
-            <span className="step-node">
-              {s?.status === "success" ? (
+          <button
+            type="button"
+            className={`pipeline-step ${status}`}
+            key={name}
+            aria-current={selected === name ? "step" : undefined}
+            aria-label={`${stageLabels[name]} · ${statusLabels[status]}`}
+            onClick={() => onStageSelect(name)}
+          >
+            <span className="step-node" aria-hidden="true">
+              {status === "success" ? (
                 <Check size={14} />
-              ) : s?.status === "running" ? (
+              ) : status === "running" ? (
                 <LoaderCircle size={14} className="spin" />
-              ) : s?.status === "failed" ? (
+              ) : status === "failed" ? (
                 <X size={14} />
+              ) : status === "timeout" ? (
+                <Clock3 size={14} />
               ) : (
                 i + 1
               )}
             </span>
-            <div>
-              <strong>{stageLabels[name]}</strong>
-              <small>{name.charAt(0).toUpperCase() + name.slice(1)}</small>
-            </div>
-            <span className="step-time">
-              {s?.duration
-                ? duration(s.duration)
-                : statusLabels[s?.status || "pending"]}
-            </span>
-          </div>
+            <strong>{stageLabels[name]}</strong>
+            <span className="step-time">{caption}</span>
+          </button>
         );
       })}
     </div>

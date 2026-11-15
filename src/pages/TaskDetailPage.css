@@ -1,0 +1,223 @@
+.diagnostic-banner,
+.diagnostic-stage {
+  --fault-ink: light-dark(#a13242, #ffb3bc);
+  --fault-surface: light-dark(#fff0f1, #3a232e);
+}
+
+.diagnostic-banner .timeout,
+.diagnostic-stage.timeout {
+  --fault-ink: light-dark(#8a5209, #ffd18a);
+  --fault-surface: light-dark(#fff3dd, #382c21);
+}
+
+.diagnostic-banner { margin-bottom: 14px; }
+.diagnostic-banner .detail-task-header { padding-block: 8px; }
+.diagnostic-banner .content-actions .button { min-height: 34px; padding: 5px 10px; }
+
+.diagnostic-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  margin: 0;
+  padding: 10px var(--panel-inset);
+  border-bottom: 1px solid var(--line);
+  font-size: 12px;
+}
+
+.diagnostic-metrics > div { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 7px; min-width: 0; }
+.diagnostic-metrics dt { color: var(--muted); }
+.diagnostic-metrics dd { margin: 0; color: var(--text); overflow-wrap: anywhere; }
+
+.diagnostic-fault {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 12px var(--panel-inset) 0;
+  padding: 9px 12px;
+  background: var(--fault-surface);
+  border-inline-start: 3px solid var(--fault-ink);
+  border-radius: 6px;
+  color: var(--fault-ink);
+}
+
+.diagnostic-fault > div { flex: 1 1 170px; min-width: 0; overflow-wrap: anywhere; }
+.diagnostic-fault strong { font-size: 14px; }
+.diagnostic-fault p { margin-top: 3px; font-size: 12px; }
+.diagnostic-fault .button { min-height: 32px; padding: 4px 8px; color: inherit; }
+
+.diagnostic-pipeline.pipeline {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  margin: 10px var(--panel-inset) 12px;
+}
+
+.diagnostic-pipeline .pipeline-step {
+  padding: 6px 2px;
+  border-radius: 6px;
+  gap: 5px;
+}
+
+.diagnostic-pipeline .pipeline-step::after { top: 19px; background: var(--line); }
+.diagnostic-pipeline .pipeline-step:hover,
+.diagnostic-pipeline .pipeline-step[aria-current="step"] { background: var(--surface-selected); }
+.diagnostic-pipeline .pipeline-step:is(.failed, .timeout) .step-node {
+  color: var(--fault-ink);
+  background: var(--fault-surface);
+  outline: 1px solid currentColor;
+}
+.diagnostic-pipeline .pipeline-step:is(.failed, .timeout) :is(strong, .step-time) { color: var(--fault-ink); font-weight: 700; }
+.diagnostic-pipeline .pipeline-step:is(.failed, .timeout):is(:hover, [aria-current="step"]) { background: var(--fault-surface); }
+
+.diagnostic-stage:is(.failed, .timeout) { border-color: color-mix(in srgb, var(--fault-ink) 48%, var(--line)); }
+.diagnostic-stage.stage-target { border-color: var(--blue); scroll-margin-top: 16px; }
+.diagnostic-stage.stage-target:is(.failed, .timeout) { border-color: var(--fault-ink); }
+.diagnostic-stage > details { padding: 0; }
+.diagnostic-stage-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
+  min-height: 50px;
+  padding: 9px var(--panel-inset);
+  list-style: none;
+}
+.diagnostic-stage-summary::-webkit-details-marker { display: none; }
+.diagnostic-stage-summary:hover { background: var(--surface-hover); }
+.diagnostic-stage:is(.failed, .timeout) .diagnostic-stage-summary { background: var(--fault-surface); }
+.diagnostic-stage-summary:focus-visible { outline-offset: -3px; }
+.diagnostic-stage-title,
+.diagnostic-stage-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px 8px;
+}
+.diagnostic-stage-title > svg { transform: rotate(-90deg); color: var(--muted); }
+.diagnostic-stage > details[open] .diagnostic-stage-title > svg { transform: none; }
+.diagnostic-stage-title strong { color: var(--text); font-size: 14px; }
+.diagnostic-stage-title code,
+.diagnostic-stage-meta { color: var(--muted); font-size: 12px; }
+
+.diagnostic-stage-body {
+  display: grid;
+  gap: 12px;
+  padding: 14px var(--panel-inset);
+  border-top: 1px solid var(--line);
+}
+.diagnostic-stage-context {
+  padding: 8px 10px;
+  border-radius: 5px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.diagnostic-stage-error { color: var(--fault-ink); }
+.diagnostic-stage-timing { display: flex; flex-wrap: wrap; gap: 5px 14px; color: var(--muted); font-size: 12px; }
+.diagnostic-stage-timing time { color: var(--text-secondary); }
+.diagnostic-stage-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.diagnostic-stage-content h3 { margin-bottom: 7px; font-size: 13px; }
+.diagnostic-stage-data { display: grid; gap: 12px; min-width: 0; }
+.diagnostic-empty { padding: 8px 10px; border-radius: 5px; background: var(--surface-soft); color: var(--muted); font-size: 12px; }
+.stage-parameters { margin: 0; border: 1px solid var(--line); border-radius: 6px; }
+.stage-parameters > div {
+  display: grid;
+  grid-template-columns: clamp(80px, 24%, 180px) minmax(0, 1fr);
+  gap: 4px 8px;
+  padding: 6px 8px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.stage-parameters > div + div { border-top: 1px solid var(--line); }
+.stage-parameters dt { color: var(--muted); }
+.stage-parameters dd { margin: 0; min-width: 0; }
+.stage-parameters pre { margin: 0; max-height: 128px; font-size: 11px; line-height: 1.45; }
+.stage-parameter-list { margin: 0; padding: 0; list-style: none; }
+.stage-parameter-list li + li { margin-top: 3px; }
+.diagnostic-files { margin: 0; padding: 0; list-style: none; border: 1px solid var(--line); border-radius: 6px; }
+.diagnostic-files li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 6px 8px; }
+.diagnostic-files li + li { border-top: 1px solid var(--line); }
+.diagnostic-files li > div { flex: 1; min-width: 0; overflow-wrap: anywhere; font-size: 12px; }
+.diagnostic-files small { display: block; color: var(--muted); font-size: 11px; }
+
+.diagnostic-log {
+  overflow: hidden;
+  border: 1px solid var(--line-control);
+  border-radius: 7px;
+  background: var(--surface-soft);
+}
+.diagnostic-log-toolbar,
+.diagnostic-log-footer,
+.diagnostic-log-name,
+.diagnostic-log-view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+.diagnostic-log-toolbar, .diagnostic-log-footer {
+  justify-content: space-between;
+  padding: 7px 9px;
+  font-size: 12px;
+}
+.diagnostic-log-name { font-size: 11px; color: var(--muted); }
+.diagnostic-log-name code { color: var(--text-secondary); }
+.diagnostic-log-mode {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line-control);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.diagnostic-log-mode button {
+  min-height: 24px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.diagnostic-log-mode button:hover { background: var(--surface-hover); }
+.diagnostic-log-mode button[aria-pressed="true"] {
+  background: var(--surface-selected);
+  color: var(--blue);
+  font-weight: 700;
+}
+.diagnostic-log-download.button,
+.diagnostic-files .button { min-height: 30px; padding: 4px 7px; font-size: 11px; }
+.diagnostic-log-download.button { margin-inline-start: auto; }
+.diagnostic-terminal.terminal {
+  margin: 0;
+  max-height: 360px;
+  padding: 12px;
+  border-radius: 0;
+  font-size: 12px;
+  line-height: 1.65;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  tab-size: 4;
+}
+.diagnostic-terminal:focus-visible { outline-offset: -3px; }
+.diagnostic-log-error { color: #ffb3bc; }
+.diagnostic-log-warning { color: #ffd18a; }
+.diagnostic-log-footer { color: var(--muted); }
+
+@media (max-width: 690px) {
+  .diagnostic-pipeline.pipeline:not(.vertical) { grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 5px; }
+  .diagnostic-pipeline .pipeline-step::after { display: none; }
+  .diagnostic-fault .button { margin-inline-start: auto; }
+}
+@media (pointer: coarse) {
+  .diagnostic-log-mode button,
+  .diagnostic-log-download.button,
+  .diagnostic-files .button { min-height: 44px; }
+}

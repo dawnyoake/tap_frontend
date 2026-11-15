@@ -9,12 +9,17 @@ import { TasksPage } from "../pages/TasksPage";
 import { TaskDetailPage } from "../pages/TaskDetailPage";
 import { SubmitPage } from "../pages/SubmitPage";
 import { HardwarePage } from "../pages/HardwarePage";
+import { HomePage } from "../pages/HomePage";
+import { stages } from "../lib/contracts";
 
 const rootRoute = createRootRoute({ component: WorkspaceLayout });
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: TasksPage,
+  component: HomePage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    art: search.art === 1 || search.art === "1" ? 1 : undefined,
+  }),
 });
 const tasksRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -34,9 +39,10 @@ const detailRoute = createRoute({
   validateSearch: (s: Record<string, unknown>) => ({
     tab:
       typeof s.tab === "string" &&
-      ["overview", "stages", "logs", "artifacts", "manifest"].includes(s.tab)
+      ["overview", "stages", "artifacts", "manifest"].includes(s.tab)
         ? s.tab
         : "stages",
+    stage: stages.find((stage) => stage === s.stage),
   }),
 });
 const submitRoute = createRoute({
