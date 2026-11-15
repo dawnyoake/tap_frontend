@@ -112,11 +112,51 @@
 
 .release-card textarea { resize: vertical; }
 
-.release-test-fields {
+.release-test-modes {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
+
+.release-test-modes label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: 1fr;
+  align-items: center;
+  gap: 6px;
+  min-height: 50px;
+  padding: 8px 10px;
+  border: 1px solid var(--line-control);
+  border-radius: 7px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.release-test-modes label:has(input:checked) {
+  border-color: var(--blue);
+  background: linear-gradient(120deg, var(--surface-selected), var(--surface));
+  color: var(--text);
+  box-shadow: inset 0 -2px color-mix(in srgb, var(--blue) 44%, transparent);
+  font-weight: 700;
+}
+
+.release-test-modes label:has(input:focus-visible) {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.release-test-modes label:has(input:checked) svg { color: var(--blue); }
+.release-test-modes label:has(input:disabled) { opacity: .55; cursor: default; }
+.release-test-modes input {
+  grid-area: 1 / 3;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--blue);
+}
+.release-test-modes svg { grid-area: 1 / 1; }
+.release-test-modes span { grid-area: 1 / 2; }
 
 .release-stages {
   padding: 0;
@@ -235,7 +275,7 @@
 }
 
 @container (max-width: 420px) {
-  .release-test-fields { grid-template-columns: minmax(0, 1fr); }
+  .release-test-modes label { padding-inline: 7px; }
 }
 
 @media (pointer: coarse) {

@@ -8,6 +8,8 @@ import {
   FolderCode,
   GitPullRequest,
   LoaderCircle,
+  ListChecks,
+  Layers,
   Plus,
   StickyNote,
   Zap,
@@ -20,18 +22,26 @@ import { demoApi } from "../lib/demoApi";
 import "./SubmitPage.css";
 
 type StageName = (typeof stages)[number];
+type TestMode = "profile" | "cases";
 
 function splitValues(value: string, delimiter: RegExp) {
   return value.split(delimiter).map((item) => item.trim()).filter(Boolean);
 }
 
 function initialDraft(config: ConfigDetail) {
+  const profile = config.editable.test_profile || "";
+  const caseText = config.editable.functions.join("\n");
+  const profileCases = config.profile_details[profile]?.functions.join("\n");
+  const testMode: TestMode = caseText && (!profile || (profileCases !== undefined && caseText !== profileCases))
+    ? "cases"
+    : "profile";
   return {
     rootMR: config.editable.root_mr || "",
     rootCodePath: "",
     serials: config.editable.sn.join(", "),
-    profile: config.editable.test_profile,
-    caseDrafts: { [config.editable.test_profile]: config.editable.functions.join("\n") },
+    profile,
+    caseText,
+    testMode,
     remark: config.editable.remark || "",
     skip: stages.filter((stage) => !config.stages.includes(stage)),
   };
@@ -133,10 +143,10 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
     !device.busy && device.state !== "offline" && !device.uncertain,
   ) ?? [];
   const deviceSummary = (serials.length ? serials : config.editable.sn).join("、");
-  const caseText = Object.hasOwn(draft.caseDrafts, draft.profile)
-    ? draft.caseDrafts[draft.profile]
-    : config.profile_details[draft.profile]?.functions.join("\n") ?? "";
-  const functions = splitValues(caseText, /\n/);
+  const functions = splitValues(draft.caseText, /\n/);
+  const usesCustomCases = draft.testMode === "cases";
+  const missingCases = test && usesCustomCases && !functions.length;
+  const profileCaseCount = config.profile_details[draft.profile]?.functions.length;
   const branch = typeof config.readonly.branch === "string" ? config.readonly.branch : "";
   const product = typeof config.readonly.product === "string" ? config.readonly.product : "";
   const summaries: Partial<Record<StageName, string>> = {
@@ -151,8 +161,9 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
     flash: flash ? deviceSummary || "未指定设备" : undefined,
     test: test
       ? [
-          draft.profile,
-          functions.length ? `${functions.length} 项用例` : "使用配置默认用例",
+          usesCustomCases
+            ? (missingCases ? "需填写测试用例" : `自选 · ${functions.length} 项用例`)
+            : (draft.profile || "默认 Profile"),
           !flash && (deviceSummary || "未指定设备"),
         ].filter(Boolean).join(" · ")
       : undefined,
@@ -171,7 +182,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
 
   function publish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!active.length || missingPath || submit.isPending) return;
+    if (!active.length || missingPath || missingCases || submit.isPending) return;
     submit.mutate({
       payload: {
         config: picker.name,
@@ -179,8 +190,8 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
           root_mr: prepare ? draft.rootMR.trim() : "",
           mr_links: [],
           sn: usesDevice ? serials : [],
-          test_profile: test ? draft.profile : "",
-          functions: test ? functions : [],
+          test_profile: test && !usesCustomCases ? draft.profile : "",
+          functions: test && usesCustomCases ? functions : [],
           remark: draft.remark,
         },
         stages: { from_stage: "prepare", only_stage: "", skip: draft.skip },
@@ -324,7 +335,21 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
               <header>
                 <h3 id="release-test-title"><FlaskConical size={17} aria-hidden="true" />测试配置</h3>
               </header>
-              <div className="release-test-fields">
+              <div className="release-test-modes" role="group" aria-label="测试方式">
+                <label>
+                  <input type="radio" name="test-mode" checked={!usesCustomCases} disabled={submit.isPending}
+                    onChange={() => updateDraft({ testMode: "profile" })} />
+                  <Layers size={17} aria-hidden="true" />
+                  <span>按 Profile</span>
+                </label>
+                <label>
+                  <input type="radio" name="test-mode" checked={usesCustomCases} disabled={submit.isPending}
+                    onChange={() => updateDraft({ testMode: "cases" })} />
+                  <ListChecks size={17} aria-hidden="true" />
+                  <span>自选用例</span>
+                </label>
+              </div>
+              {!usesCustomCases ? (
                 <label className="field">
                   测试 Profile
                   <select
@@ -332,28 +357,30 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
                     disabled={submit.isPending}
                     onChange={(event) => updateDraft({ profile: event.target.value })}
                   >
-                    {!config.test_profiles.includes(config.editable.test_profile) && (
-                      <option value={config.editable.test_profile}>
+                    {!config.test_profiles.includes(config.editable.test_profile || "") && (
+                      <option value={config.editable.test_profile || ""}>
                         {config.editable.test_profile || "使用配置默认值"}
                       </option>
                     )}
                     {config.test_profiles.map((profile) => <option key={profile}>{profile}</option>)}
                   </select>
+                  {profileCaseCount !== undefined && <small>包含 {profileCaseCount} 项用例</small>}
                 </label>
+              ) : (
                 <label className="field">
                   测试用例
                   <textarea
                     rows={3}
-                    value={caseText}
+                    required
+                    aria-invalid={missingCases}
+                    value={draft.caseText}
                     disabled={submit.isPending}
-                    onChange={(event) => updateDraft({
-                      caseDrafts: { ...draft.caseDrafts, [draft.profile]: event.target.value },
-                    })}
+                    onChange={(event) => updateDraft({ caseText: event.target.value })}
                     placeholder="每行一个用例"
                   />
+                  {missingCases && <small className="release-problem">请至少填写一个用例。</small>}
                 </label>
-              </div>
-              <p>各 Profile 分别保留编辑内容。清空用例时沿用配置默认值。</p>
+              )}
             </section>
           )}
           <section className="panel release-card" aria-labelledby="release-remark-title">
@@ -374,7 +401,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
         <div className="release-publish">
           {!active.length && <p className="release-warning" role="alert">请至少将一个阶段设为「执行」。</p>}
           <ErrorBox error={submit.error} />
-          <button className="button primary cta full" type="submit" disabled={!active.length || missingPath || submit.isPending}>
+          <button className="button primary cta full" type="submit" disabled={!active.length || missingPath || missingCases || submit.isPending}>
             {submit.isPending ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <Zap size={17} aria-hidden="true" />}
             {submit.isPending ? "正在发布…" : isDemo ? "发布演示任务" : "发布任务"}
             <ArrowRight className="cta-arrow" size={16} aria-hidden="true" />

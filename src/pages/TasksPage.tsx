@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Badge, statusLabels } from "../components/StatusBadge";
@@ -11,6 +11,8 @@ import { findFaultStage } from "../lib/runStages";
 import {
   ArrowDownToLine,
   ArrowUpRight,
+  ChevronDown,
+  FileText,
   GitBranch,
   Plus,
   RefreshCw,
@@ -19,9 +21,12 @@ import {
 } from "lucide-react";
 
 function RunDownloads({ run }: { run: Run }) {
+  const popoverId = useId();
+  const [expanded, setExpanded] = useState(false);
   const detail = useQuery({
     queryKey: ["detail", run.run_id],
     queryFn: () => api.detail(run.run_id),
+    enabled: expanded,
   });
   const source = detail.data?.stages ?? run.stages ?? [];
   const files = [...source]
@@ -33,32 +38,61 @@ function RunDownloads({ run }: { run: Run }) {
     })));
 
   return (
-    <div id="run-downloads" className="run-downloads" role="region" aria-label={`任务 ${run.run_id} 的下载产物`}>
-      <ErrorBox error={detail.error} />
-      {files.length ? (
-        <ul>
-          {files.map(({ artifact, stage, href }, index) => (
-            <li key={index}>
-              <div>
-                <b>{artifact.name}</b>
-                <small>{[stageLabels[stage] || stage, artifact.size].filter(Boolean).join(" · ")}</small>
-              </div>
-              {href ? (
-                <a className="button" href={href} download aria-label={`下载 ${artifact.name}`}>
-                  <ArrowDownToLine size={14} aria-hidden="true" /> 下载
-                </a>
-              ) : (
-                <span className="subtle">{isDemo ? "演示占位文件" : "暂无下载链接"}</span>
-              )}
-            </li>
-          ))}
-        </ul>
-      ) : detail.isPending ? (
-        <p className="subtle" role="status">正在加载产物…</p>
-      ) : !detail.error && (
-        <p className="subtle">暂无可下载产物</p>
-      )}
-    </div>
+    <>
+      <button
+        type="button"
+        className="run-download-toggle"
+        aria-label={`${expanded ? "收起" : "查看"} ${run.run_id} 的下载产物`}
+        aria-expanded={expanded}
+        popoverTarget={popoverId}
+      >
+        <ArrowDownToLine size={14} aria-hidden="true" />产物
+        <ChevronDown className="run-download-chevron" size={12} aria-hidden="true" />
+      </button>
+      <div
+        id={popoverId}
+        popover="auto"
+        className="run-downloads"
+        role="region"
+        aria-label={`任务 ${run.run_id} 的下载产物`}
+        onToggle={(event) => setExpanded(event.currentTarget.matches(":popover-open"))}
+      >
+        <ErrorBox error={detail.error} />
+        {files.length ? (
+          <ul>
+            {files.map(({ artifact, stage, href }, index) => {
+              const info = (
+                <span className="run-download-file">
+                  <b>{artifact.name}</b>
+                  <small>{[stageLabels[stage] || stage, artifact.size].filter(Boolean).join(" · ")}</small>
+                  {!href && <small>{isDemo ? "演示占位文件" : "暂无下载链接"}</small>}
+                </span>
+              );
+              return (
+                <li key={index}>
+                  {href ? (
+                    <a className="run-download-option" href={href} download aria-label={`下载 ${artifact.name}`}>
+                      <FileText size={16} aria-hidden="true" />
+                      {info}
+                      <ArrowDownToLine size={15} aria-hidden="true" />
+                    </a>
+                  ) : (
+                    <div className="run-download-option unavailable">
+                      <FileText size={16} aria-hidden="true" />
+                      {info}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        ) : detail.isPending ? (
+          <p className="subtle" role="status">正在加载产物…</p>
+        ) : !detail.error && (
+          <p className="subtle">暂无可下载产物</p>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -84,7 +118,6 @@ export function TasksPage() {
       return () => cancelAnimationFrame(frame);
     }
   }, [mine, filter]);
-  const [downloadsRun, setDownloadsRun] = useState<string | null>(null);
   const visible = usePolling();
   const params = new URLSearchParams({ q, sort });
   const baseKey = params.toString();
@@ -138,7 +171,6 @@ export function TasksPage() {
     } else {
       filterScroll.current = null;
     }
-    setDownloadsRun(null);
     void navigate({
       to: "/tasks",
       search: { ...search, ...value },
@@ -254,7 +286,6 @@ export function TasksPage() {
           </div>
           {runs.map((run) => {
             const fault = findFaultStage(run);
-            const expanded = downloadsRun === run.run_id;
             const hasArtifacts = run.artifact_count !== 0 || run.stages?.some((stage) => stage.artifacts?.length);
             return (
               <div key={run.run_id}>
@@ -312,21 +343,9 @@ export function TasksPage() {
                     {duration(run.duration)}
                   </span>
                   <div className="run-download">
-                    {hasArtifacts ? (
-                      <button
-                        type="button"
-                        className="run-download-toggle"
-                        aria-label={`${expanded ? "收起" : "查看"} ${run.run_id} 的下载产物`}
-                        aria-expanded={expanded}
-                        aria-controls={expanded ? "run-downloads" : undefined}
-                        onClick={() => setDownloadsRun(expanded ? null : run.run_id)}
-                      >
-                        <ArrowDownToLine size={14} aria-hidden="true" />产物
-                      </button>
-                    ) : <span className="subtle">暂无产物</span>}
+                    {hasArtifacts ? <RunDownloads run={run} /> : <span className="subtle">暂无产物</span>}
                   </div>
                 </div>
-                {expanded && <RunDownloads run={run} />}
               </div>
             );
           })}

@@ -90,6 +90,8 @@ const config: ConfigDetail = {
 function demoStages(run: Run): Stage[] {
   const submitted = submittedRuns.get(run.run_id);
   const overrides = submitted?.payload.overrides;
+  const customCases = overrides?.functions.length && !overrides.test_profile;
+  const profile = overrides?.test_profile || config.editable.test_profile;
   const params = {
     prepare: { branch: run.branch, ...(overrides?.root_mr && { root_mr: overrides.root_mr }) },
     build: {
@@ -103,8 +105,10 @@ function demoStages(run: Run): Stage[] {
     flash: { sn: run.sn },
     test: {
       sn: run.sn,
-      test_profile: overrides?.test_profile || config.editable.test_profile,
-      functions: overrides?.functions.length ? overrides.functions : config.editable.functions,
+      ...(!customCases && { test_profile: profile }),
+      functions: overrides?.functions.length
+        ? overrides.functions
+        : config.profile_details[profile]?.functions ?? config.editable.functions,
       timeout_s: 1800,
     },
   };
