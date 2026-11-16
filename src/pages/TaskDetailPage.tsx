@@ -9,13 +9,12 @@ import { Empty, ErrorBox, Loading } from "../components/Feedback";
 import { Pipeline } from "../components/RunProgress";
 import { JsonPanel } from "../components/RunLogs";
 import { StageDetails } from "../components/StageDetails";
+import { ArtifactAction } from "../components/ArtifactAction";
 import { usePolling } from "../hooks/queries";
-import { api, isDemo, stages, stageLabels, duration } from "../lib/api";
-import { artifactDownloadHref } from "../lib/artifacts";
+import { api, stages, stageLabels, duration } from "../lib/api";
 import { findFaultStage, isStageFault, type StageName } from "../lib/runStages";
 import {
   Activity,
-  ArrowDownToLine,
   ArrowDownRight,
   Box,
   CircleAlert,
@@ -262,32 +261,20 @@ export function TaskDetailPage() {
               <h2>任务产物</h2>
             </div>
             {d.stages.flatMap((s) =>
-              (s.artifacts || []).map((a, i) => {
-                const href = artifactDownloadHref(a);
-                return (
-                  <div className="artifact-row" key={s.name + i}>
-                    <span className="file-icon">
-                      <Box size={20} />
-                    </span>
-                    <div>
-                      <b>{a.name}</b>
-                      <small>
-                        {stageLabels[s.name]} · {a.size || "大小未知"}
-                      </small>
-                    </div>
-                    {href ? (
-                      <a className="button" href={href} download>
-                        <ArrowDownToLine size={15} />
-                        下载
-                      </a>
-                    ) : (
-                      <span className="subtle">
-                        {isDemo ? "演示产物，无下载文件" : "暂无下载链接"}
-                      </span>
-                    )}
+              (s.artifacts || []).map((a, i) => (
+                <div className="artifact-row" key={s.name + i}>
+                  <span className="file-icon">
+                    <Box size={20} />
+                  </span>
+                  <div>
+                    <b>{a.name}</b>
+                    <small>
+                      {[stageLabels[s.name], a.size].filter(Boolean).join(" · ")}
+                    </small>
                   </div>
-                );
-              }),
+                  <ArtifactAction artifact={a} />
+                </div>
+              )),
             )}
             {!d.stages.some((s) => s.artifacts?.length) && (
               <Empty text="暂无产物" />

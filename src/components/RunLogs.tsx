@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ErrorBox } from "./Feedback";
 import {
@@ -9,6 +9,8 @@ import {
   type Stage,
 } from "../lib/api";
 import { httpHref } from "../lib/artifacts";
+import { demoApi } from "../lib/demoApi";
+import { LOG_PREVIEW_BYTES } from "../lib/logPreview";
 import { ArrowDownToLine, Copy, Terminal } from "lucide-react";
 
 async function copy(text: string, set: (s: string) => void) {
@@ -38,15 +40,10 @@ export function JsonPanel({ value }: { value: unknown }) {
     </section>
   );
 }
-function stageLogQuery(runId: string, stage: string) {
-  return {
-    queryKey: ["log", runId, stage],
-    queryFn: () => api.log(runId, stage),
-  };
-}
-
 function colorLogPreview(text: string) {
-  return text.split(/(?<=\n)/).map((line, index) => {
+  const lines = text.split(/(?<=\n)/);
+  if (lines.length > 500) return text;
+  return lines.map((line, index) => {
     const severity = line.match(/\[(ERROR|FATAL|WARN|WARNING)\]/)?.[1];
     if (!severity) return line;
     const kind = severity === "ERROR" || severity === "FATAL" ? "error" : "warning";
@@ -63,15 +60,19 @@ export function StageLog({
   name: string;
   stage?: Stage;
 }) {
-  const [expanded, setExpanded] = useState(false);
+  const [online, setOnline] = useState(false);
   const [auto, setAuto] = useState(stage?.status === "running");
   const ref = useRef<HTMLPreElement>(null);
   const client = useQueryClient();
-  const query = stageLogQuery(runId, name);
-  const log = useQuery({ ...query, enabled: expanded });
+  const queryKey = ["log-preview", runId, name, stage?.log_url] as const;
+  const log = useQuery({
+    queryKey,
+    queryFn: ({ signal }) => api.logPreview(runId, name, { url: stage?.log_url, signal }),
+    enabled: online,
+  });
   const download = useMutation({
     mutationFn: async () => {
-      const content = await client.fetchQuery(query);
+      const content = await demoApi.log(runId, name);
       if (!content) throw new Error("暂无日志可下载");
       const url = URL.createObjectURL(new Blob([content], { type: "text/plain;charset=utf-8" }));
       const link = document.createElement("a");
@@ -83,8 +84,8 @@ export function StageLog({
       window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     },
   });
-  const fullText = expanded ? log.data : undefined;
-  const text = fullText ?? stage?.log_tail ?? "";
+  const text = online ? log.data?.text ?? "" : stage?.log_tail?.slice(-LOG_PREVIEW_BYTES) ?? "";
+  const renderedLog = useMemo(() => colorLogPreview(text), [text]);
   const hasLog = Boolean(
     stage?.log_tail || stage?.log_url || stage?.log_download || stage?.log_path ||
     (typeof stage?.log_size === "number" && stage.log_size > 0),
@@ -93,50 +94,69 @@ export function StageLog({
     if (auto && ref.current) ref.current.scrollTop = ref.current.scrollHeight;
   }, [text, auto]);
 
-  if (!hasLog) return <p className="diagnostic-empty">暂无阶段日志</p>;
+  if (!hasLog) {
+    return (
+      <div className="diagnostic-stage-card diagnostic-log">
+        <header className="diagnostic-stage-card-header"><h3>阶段日志</h3></header>
+        <p className="diagnostic-empty">暂无阶段日志</p>
+      </div>
+    );
+  }
 
   const downloadHref = httpHref(stage?.log_download) || logUrl(runId, name, true);
   return (
-    <div className="diagnostic-log">
-      <div className="diagnostic-log-toolbar">
+    <div className="diagnostic-stage-card diagnostic-log">
+      <header className="diagnostic-stage-card-header diagnostic-log-toolbar">
         <div className="diagnostic-log-view">
+          <h3>阶段日志</h3>
           <span className="diagnostic-log-name">
             <Terminal size={15} aria-hidden="true" />
             <code>{name}.log</code>
           </span>
           <div className="diagnostic-log-mode" role="group" aria-label="日志阅读模式">
-            <button type="button" aria-pressed={!expanded} onClick={() => setExpanded(false)}>
+            <button type="button" aria-pressed={!online} onClick={() => {
+              setOnline(false);
+              void client.cancelQueries({ queryKey, exact: true });
+            }}>
               尾部预览
             </button>
-            <button type="button" aria-pressed={expanded} onClick={() => setExpanded(true)}>
-              完整日志
+            <button type="button" aria-pressed={online} onClick={() => {
+              if (online) return;
+              setOnline(true);
+              setAuto(false);
+            }}>
+              在线日志
             </button>
           </div>
         </div>
         {isDemo ? (
           <button type="button" className="button diagnostic-log-download" disabled={download.isPending} onClick={() => download.mutate()}>
             <ArrowDownToLine size={15} aria-hidden="true" />
-            {download.isPending ? "正在准备…" : "下载日志"}
+            {download.isPending ? "正在准备…" : "下载完整日志"}
           </button>
         ) : (
           <a className="button diagnostic-log-download" href={downloadHref} download>
             <ArrowDownToLine size={15} aria-hidden="true" />
-            下载日志
+            下载完整日志
           </a>
         )}
-      </div>
-      <ErrorBox error={(expanded && log.error) || download.error} />
+      </header>
+      <ErrorBox error={(online && log.error) || download.error} />
       <pre ref={ref} className="terminal diagnostic-terminal" tabIndex={0} aria-label={`${stageLabels[name] || name}日志`}>
         {text
-          ? text.length < 65536 ? colorLogPreview(text) : text
-          : log.isFetching ? "正在加载…" : "暂无日志预览"}
+          ? renderedLog
+          : online && log.isFetching ? "正在加载…" : "暂无日志预览"}
       </pre>
       <div className="diagnostic-log-footer">
         <label className="checkbox">
           <input type="checkbox" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
           自动滚动
         </label>
-        <span role="status">{expanded && log.isFetching && "正在加载完整日志…"}</span>
+        <span role="status">
+          {online && (log.isFetching
+            ? "正在加载在线日志…"
+            : log.data?.truncated && "最多显示开头 64 KiB，完整内容请下载。")}
+        </span>
       </div>
     </div>
   );

@@ -637,10 +637,24 @@ input[type="checkbox"] {
   background: light-dark(#8994a3, #8792a5);
 }
 @media (prefers-reduced-motion: no-preference) {
+  .badge.running {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+  .badge.running::after,
   .progress-segment.running::after {
     content: "";
     position: absolute;
     inset: 0;
+    pointer-events: none;
+  }
+  .badge.running::after {
+    z-index: -1;
+    background: linear-gradient(110deg, transparent 20%, rgb(255 255 255 / 18%) 50%, transparent 80%);
+    animation: progress-charge 2.4s ease-out infinite;
+  }
+  .progress-segment.running::after {
     background: linear-gradient(90deg, transparent, #fff9, transparent);
     animation: progress-charge 1.8s ease-out infinite;
   }

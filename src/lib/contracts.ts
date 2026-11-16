@@ -1,3 +1,5 @@
+import type { LogPreview } from "./logPreview";
+
 export const stages = [
   "prepare",
   "build",
@@ -132,5 +134,5 @@ export interface PipelineApi {
   config(name: string): Promise<ConfigDetail>;
   submit(body: SubmitTaskInput): Promise<{ run_id: string }>;
   remove(id: string): Promise<unknown>;
-  log(id: string, stage: string): Promise<string>;
+  logPreview(id: string, stage: string, options?: { url?: string; signal?: AbortSignal }): Promise<LogPreview>;
 }

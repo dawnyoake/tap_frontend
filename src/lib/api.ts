@@ -1,5 +1,7 @@
 import type { PipelineApi } from "./contracts";
 import { demoApi } from "./demoApi";
+import { httpHref } from "./artifacts";
+import { LOG_PREVIEW_BYTES, readLogPreview } from "./logPreview";
 
 export * from "./contracts";
 
@@ -50,10 +52,16 @@ const liveApi: PipelineApi = {
   config: (name) => request("/api/configs/" + encodeURIComponent(name)),
   submit: (body) => request("/api/tasks", body),
   remove: (id) => request("/api/delete", { run: id }),
-  log: async (id, stage) => {
-    const response = await fetch(logUrl(id, stage));
+  logPreview: async (id, stage, options) => {
+    const response = await fetch(httpHref(options?.url) ?? logUrl(id, stage), {
+      headers: { Range: `bytes=0-${LOG_PREVIEW_BYTES - 1}` },
+      signal: options?.signal,
+    });
+    if (response.status === 416 && response.headers.get("Content-Range") === "bytes */0") {
+      return { text: "", truncated: false };
+    }
     if (!response.ok) throw new Error(`日志加载失败（${response.status}）`);
-    return response.text();
+    return readLogPreview(response);
   },
 };
 

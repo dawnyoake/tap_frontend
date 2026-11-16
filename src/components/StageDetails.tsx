@@ -1,8 +1,8 @@
-import type { Ref } from "react";
-import { ArrowDownToLine, ChevronDown, FileText } from "lucide-react";
-import { duration, isDemo, stageLabels, type Stage, type Status } from "../lib/api";
-import { artifactDownloadHref } from "../lib/artifacts";
-import { isStageFault, type StageName } from "../lib/runStages";
+import { useState, type Ref } from "react";
+import { ChevronDown, FileText } from "lucide-react";
+import { duration, stageLabels, type Stage, type Status } from "../lib/api";
+import type { StageName } from "../lib/runStages";
+import { ArtifactAction } from "./ArtifactAction";
 import { StageLog } from "./RunLogs";
 import { Badge } from "./StatusBadge";
 
@@ -69,6 +69,7 @@ export function StageDetails({
   selected: boolean;
   targetRef?: Ref<HTMLElement>;
 }) {
+  const [open, setOpen] = useState(selected);
   const artifacts = stage?.artifacts ?? [];
   const titleId = `detail-stage-${name}`;
   return (
@@ -78,10 +79,9 @@ export function StageDetails({
       tabIndex={targetRef ? -1 : undefined}
       aria-labelledby={titleId}
     >
-      <details open={selected || undefined}>
+      <details open={selected || undefined} onToggle={(event) => setOpen(event.currentTarget.open)}>
         <summary className="diagnostic-stage-summary">
           <span className="diagnostic-stage-title">
-            <ChevronDown size={15} aria-hidden="true" />
             <strong id={titleId}>{stageLabels[name]}</strong>
             <code>{name}</code>
           </span>
@@ -89,6 +89,11 @@ export function StageDetails({
             {artifacts.length > 0 && <span>{artifacts.length} 项产物</span>}
             {typeof stage?.duration === "number" && <span className="mono">{duration(stage.duration)}</span>}
             <Badge status={status} />
+            <span className="diagnostic-stage-toggle">
+              <span className="diagnostic-stage-expand">展开</span>
+              <span className="diagnostic-stage-collapse">收起</span>
+              <ChevronDown size={15} aria-hidden="true" />
+            </span>
           </span>
         </summary>
         <div className="diagnostic-stage-body">
@@ -105,41 +110,29 @@ export function StageDetails({
             </div>
           )}
           <div className="diagnostic-stage-content">
-            <div className="diagnostic-stage-log">
-              <h3>阶段日志</h3>
-              <StageLog runId={runId} name={name} stage={stage} />
+            {open && <StageLog runId={runId} name={name} stage={stage} />}
+            <div className="diagnostic-stage-card">
+              <header className="diagnostic-stage-card-header"><h3>阶段参数</h3></header>
+              <StageParameters params={stage?.params} />
             </div>
-            <div className="diagnostic-stage-data">
-              <div>
-                <h3>阶段参数</h3>
-                <StageParameters params={stage?.params} />
-              </div>
-              <div>
-                <h3>阶段产物</h3>
-                {artifacts.length > 0 ? (
-                  <ul className="diagnostic-files">
-                    {artifacts.map((artifact, index) => {
-                      const href = artifactDownloadHref(artifact);
-                      return (
-                        <li key={index}>
-                          <FileText size={15} aria-hidden="true" />
-                          <div>
-                            <strong>{artifact.name}</strong>
-                            {artifact.size != null && <small>{artifact.size}</small>}
-                          </div>
-                          {href ? (
-                            <a className="button" href={href} download aria-label={`下载 ${artifact.name}`}>
-                              <ArrowDownToLine size={14} aria-hidden="true" /> 下载
-                            </a>
-                          ) : <small>{isDemo ? "演示占位" : "暂无下载链接"}</small>}
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="diagnostic-empty">{isStageFault(status) ? "该阶段暂无可下载产物" : "暂无阶段产物"}</p>
-                )}
-              </div>
+            <div className="diagnostic-stage-card">
+              <header className="diagnostic-stage-card-header"><h3>阶段产物</h3></header>
+              {artifacts.length > 0 ? (
+                <ul className="diagnostic-files">
+                  {artifacts.map((artifact, index) => (
+                    <li key={index}>
+                      <FileText size={15} aria-hidden="true" />
+                      <div>
+                        <strong>{artifact.name}</strong>
+                        {artifact.size != null && <small>{artifact.size}</small>}
+                      </div>
+                      <ArtifactAction artifact={artifact} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="diagnostic-empty">暂无阶段产物</p>
+              )}
             </div>
           </div>
         </div>

@@ -152,6 +152,7 @@ function demoStages(run: Run): Stage[] {
 
 export const demoApi: Omit<PipelineApi, "submit"> & {
   submit: (payload: SubmitTaskInput, rootCodePath?: string) => Promise<{ run_id: string }>;
+  log: (id: string, stage: string) => Promise<string>;
 } = {
   me: async () => ({ uid: "user-****", label: "user-****" }),
   runs: async () => ({
@@ -220,4 +221,5 @@ export const demoApi: Omit<PipelineApi, "submit"> & {
     const tail = detail.stages.find((item) => item.name === stage)?.log_tail;
     return tail ? `[演示日志 · 脱敏数据]\n${tail}` : "";
   },
+  logPreview: async (id, stage) => ({ text: await demoApi.log(id, stage), truncated: false }),
 };

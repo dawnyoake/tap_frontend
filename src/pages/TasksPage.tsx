@@ -6,12 +6,13 @@ import { Empty, ErrorBox, Loading } from "../components/Feedback";
 import { Progress } from "../components/RunProgress";
 import { usePolling } from "../hooks/queries";
 import { api, isDemo, stageLabels, duration, type Run } from "../lib/api";
-import { artifactDownloadHref } from "../lib/artifacts";
+import { artifactAction } from "../lib/artifacts";
 import { findFaultStage } from "../lib/runStages";
 import {
   ArrowDownToLine,
   ArrowUpRight,
   ChevronDown,
+  ExternalLink,
   FileText,
   GitBranch,
   Plus,
@@ -34,7 +35,7 @@ function RunDownloads({ run }: { run: Run }) {
     .flatMap((stage) => (stage.artifacts ?? []).map((artifact) => ({
       artifact,
       stage: stage.name,
-      href: artifactDownloadHref(artifact),
+      action: artifactAction(artifact),
     })));
 
   return (
@@ -42,7 +43,7 @@ function RunDownloads({ run }: { run: Run }) {
       <button
         type="button"
         className="run-download-toggle"
-        aria-label={`${expanded ? "收起" : "查看"} ${run.run_id} 的下载产物`}
+        aria-label={`${expanded ? "收起" : "查看"} ${run.run_id} 的产物`}
         aria-expanded={expanded}
         popoverTarget={popoverId}
       >
@@ -54,27 +55,36 @@ function RunDownloads({ run }: { run: Run }) {
         popover="auto"
         className="run-downloads"
         role="region"
-        aria-label={`任务 ${run.run_id} 的下载产物`}
+        aria-label={`任务 ${run.run_id} 的产物`}
         onToggle={(event) => setExpanded(event.currentTarget.matches(":popover-open"))}
       >
         <ErrorBox error={detail.error} />
         {files.length ? (
           <ul>
-            {files.map(({ artifact, stage, href }, index) => {
+            {files.map(({ artifact, stage, action }, index) => {
+              const opensPage = action?.kind === "open";
+              const Icon = opensPage ? ExternalLink : ArrowDownToLine;
               const info = (
                 <span className="run-download-file">
                   <b>{artifact.name}</b>
                   <small>{[stageLabels[stage] || stage, artifact.size].filter(Boolean).join(" · ")}</small>
-                  {!href && <small>{isDemo ? "演示占位文件" : "暂无下载链接"}</small>}
+                  {!action && <small>{isDemo ? "演示占位" : "暂无链接"}</small>}
                 </span>
               );
               return (
                 <li key={index}>
-                  {href ? (
-                    <a className="run-download-option" href={href} download aria-label={`下载 ${artifact.name}`}>
+                  {action ? (
+                    <a
+                      className="run-download-option"
+                      href={action.href}
+                      download={opensPage ? undefined : true}
+                      target={opensPage ? "_blank" : undefined}
+                      rel={opensPage ? "noopener noreferrer" : undefined}
+                      aria-label={`${opensPage ? "打开链接" : "下载"} ${artifact.name}`}
+                    >
                       <FileText size={16} aria-hidden="true" />
                       {info}
-                      <ArrowDownToLine size={15} aria-hidden="true" />
+                      <Icon size={15} aria-hidden="true" />
                     </a>
                   ) : (
                     <div className="run-download-option unavailable">
@@ -89,7 +99,7 @@ function RunDownloads({ run }: { run: Run }) {
         ) : detail.isPending ? (
           <p className="subtle" role="status">正在加载产物…</p>
         ) : !detail.error && (
-          <p className="subtle">暂无可下载产物</p>
+          <p className="subtle">暂无产物</p>
         )}
       </div>
     </>
@@ -282,7 +292,7 @@ export function TasksPage() {
             <span>状态</span>
             <span>执行进度</span>
             <span className="task-cell-time">耗时</span>
-            <span className="task-cell-download">下载</span>
+            <span className="task-cell-download">产物</span>
           </div>
           {runs.map((run) => {
             const fault = findFaultStage(run);
