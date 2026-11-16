@@ -7,24 +7,20 @@ import {
   type Detail,
   type Status,
 } from "../lib/api";
-import { isStageFault, type StageName } from "../lib/runStages";
+import { getStageStatus, isStageFault, type StageName } from "../lib/runStages";
 import { Check, Clock3, LoaderCircle, X } from "lucide-react";
 
 export function Progress({ run }: { run: Run }) {
+  const segments = stages.map((name, index) => {
+    const status = getStageStatus(run, name, index);
+    return { name, status, label: `${stageLabels[name]}：${statusLabels[status]}` };
+  });
+
   return (
     <div className="progress-cell">
-      <div className={`progress-segments ${run.verdict}`}>
-        {stages.map((s, i) => (
-          <i
-            key={s}
-            className={
-              i < run.progress.done
-                ? "done"
-                : s === run.current_stage
-                  ? "current"
-                  : ""
-            }
-          />
+      <div className="progress-segments" role="img" aria-label={segments.map(({ label }) => label).join("，")}>
+        {segments.map(({ name, status, label }) => (
+          <span key={name} className={`progress-segment ${status}`} title={label} />
         ))}
       </div>
       <span>

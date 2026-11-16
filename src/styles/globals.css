@@ -609,23 +609,45 @@ input[type="checkbox"] {
   max-width: 90px;
   width: 100%;
 }
-.progress-segments i {
-  height: 4px;
-  background: var(--surface-soft);
-  border-radius: 2px;
+.progress-segment {
+  position: relative;
+  overflow: hidden;
+  height: 5px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--line-control);
+  border-radius: 999px;
   flex: 1;
 }
-.progress-segments i.done {
-  background: #7596ef;
+.progress-segment:is(.success, .running, .failed, .timeout, .skipped) {
+  box-shadow: none;
 }
-.progress-segments.success i.done {
-  background: #8fceb5;
+.progress-segment.success {
+  background: light-dark(#2a926b, #56c69c);
 }
-.progress-segments.failed i.current {
-  background: #dd8b91;
+.progress-segment.running {
+  background: light-dark(#365ed5, #7395ff);
 }
-.progress-segments.running i.current {
-  background: #adc1fa;
+.progress-segment.failed {
+  background: light-dark(#c13b4c, #f78795);
+}
+.progress-segment.timeout {
+  background: light-dark(#854bb3, #bd8dec);
+}
+.progress-segment.skipped {
+  background: light-dark(#8994a3, #8792a5);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .progress-segment.running::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, #fff9, transparent);
+    animation: progress-charge 1.8s ease-out infinite;
+  }
+  @keyframes progress-charge {
+    0% { transform: translateX(-100%); }
+    60%, 100% { transform: translateX(100%); }
+  }
 }
 .progress-cell > span {
   font-size: 11px;

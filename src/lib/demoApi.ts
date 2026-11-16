@@ -9,6 +9,7 @@ import {
   type Status,
   type SubmitTaskInput,
 } from "./contracts";
+import { getStageStatus, type StageName } from "./runStages";
 
 const fixtureRuns: Run[] = Array.from({ length: 8 }, (_, i) => ({
   run_id: `run-20261114-${String(8 - i).padStart(3, "0")}`,
@@ -87,6 +88,12 @@ const config: ConfigDetail = {
   },
 };
 
+function demoStageStatus(run: Run, name: StageName, index: number): Status {
+  return submittedRuns.get(run.run_id)?.payload.stages.skip.includes(name)
+    ? "skipped"
+    : getStageStatus(run, name, index);
+}
+
 function demoStages(run: Run): Stage[] {
   const submitted = submittedRuns.get(run.run_id);
   const overrides = submitted?.payload.overrides;
@@ -114,13 +121,7 @@ function demoStages(run: Run): Stage[] {
   };
 
   return stages.map((name, i) => {
-    const status = submitted?.payload.stages.skip.includes(name)
-      ? "skipped"
-      : i < run.progress.done
-        ? "success"
-        : name === run.current_stage
-          ? run.verdict
-          : "pending";
+    const status = demoStageStatus(run, name, i);
     const error = status === "timeout"
       ? "自动测试达到 30 分钟超时上限。"
       : status === "failed"
@@ -153,7 +154,12 @@ export const demoApi: Omit<PipelineApi, "submit"> & {
   submit: (payload: SubmitTaskInput, rootCodePath?: string) => Promise<{ run_id: string }>;
 } = {
   me: async () => ({ uid: "user-****", label: "user-****" }),
-  runs: async () => ({ items: runs }),
+  runs: async () => ({
+    items: runs.map((run) => ({
+      ...run,
+      stages: stages.map((name, index) => ({ name, status: demoStageStatus(run, name, index) })),
+    })),
+  }),
   detail: (id: string): Promise<Detail> => {
     const run = runs.find((r) => r.run_id === id);
     if (!run) return Promise.reject(new Error("任务不存在"));

@@ -36,7 +36,7 @@
   grid-template-rows: max-content auto 1fr;
   grid-template-areas: "base stages" "config stages" "config publish";
   align-items: start;
-  gap: 10px 16px;
+  gap: 18px clamp(24px, 3cqi, 36px);
 }
 
 .release-base,
@@ -53,6 +53,9 @@
 .release-stage-list { grid-area: stages; }
 .release-configs { grid-area: config; }
 .release-publish { grid-area: publish; }
+.release-base,
+.release-stage-list,
+.release-configs { gap: 12px; }
 .release-layout-loading { margin-bottom: 10px; }
 
 .release-section-heading,
@@ -73,7 +76,7 @@
 }
 
 .release-card {
-  padding: 13px 14px;
+  padding: 14px 16px;
 }
 
 .release-card h3 {
@@ -171,8 +174,8 @@
   grid-template-columns: max-content minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 6px 10px;
+  min-height: 44px;
+  padding: 7px 14px;
   cursor: pointer;
 }
 
@@ -271,13 +274,10 @@
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto;
     grid-template-areas: "base" "stages" "config" "publish";
+    row-gap: 22px;
   }
 }
 
 @container (max-width: 420px) {
   .release-test-modes label { padding-inline: 7px; }
-}
-
-@media (pointer: coarse) {
-  .release-stages label { min-height: 44px; }
 }
