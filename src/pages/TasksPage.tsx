@@ -1,6 +1,6 @@
 import { useId, useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useLocation, useNavigate } from "@tanstack/react-router";
+import { getRouteApi, Link, useLocation, useNavigate } from "@tanstack/react-router";
 import { Badge, statusLabels } from "../components/StatusBadge";
 import { Empty, ErrorBox, Loading } from "../components/Feedback";
 import { Progress } from "../components/RunProgress";
@@ -106,13 +106,16 @@ function RunDownloads({ run }: { run: Run }) {
   );
 }
 
+const tasksRoute = getRouteApi("/tasks");
+
 export function TasksPage() {
-  const search = useLocation().search as Record<string, unknown>;
+  const search = tasksRoute.useSearch();
+  const returning = useLocation({ select: (location) => location.state.taskListReturn });
   const navigate = useNavigate();
-  const q = String(search.q || "");
-  const filter = String(search.verdict || "all");
-  const sort = String(search.sort || "newest");
-  const mine = search.mine !== false && search.mine !== "false";
+  const { q, verdict: filter, sort, mine } = search;
+  const extraStatus = ["all", "running", "success", "failed"].includes(filter) ? "" : filter;
+  const returnedTask = useRef<HTMLAnchorElement>(null);
+  const restored = useRef(false);
   const filterScroll = useRef<{
     mine: boolean;
     verdict: string;
@@ -120,7 +123,7 @@ export function TasksPage() {
   } | null>(null);
   useLayoutEffect(() => {
     const target = filterScroll.current;
-    if (target?.mine === mine && target.verdict === filter) {
+    if (target && target.mine === mine && target.verdict === filter) {
       const frame = requestAnimationFrame(() => {
         filterScroll.current = null;
         window.scrollTo({ top: target.top, behavior: "instant" });
@@ -142,6 +145,20 @@ export function TasksPage() {
     refetchInterval: visible ? 15000 : false,
   });
   const me = useQuery({ queryKey: ["me"], queryFn: api.me });
+  const listReady = !result.isPending && (!isDemo || !mine || !me.isPending);
+  useLayoutEffect(() => {
+    if (!returning || !listReady || restored.current) return;
+    const frame = requestAnimationFrame(() => {
+      restored.current = true;
+      window.scrollTo({ top: returning.scrollTop, behavior: "instant" });
+      const link = returnedTask.current;
+      if (link) {
+        link.scrollIntoView({ block: "nearest", behavior: "instant" });
+        link.focus({ preventScroll: true });
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [listReady, returning]);
   let runs = result.data?.items || [];
   if (isDemo) {
     runs = runs.filter(
@@ -255,7 +272,7 @@ export function TasksPage() {
           ].map(([id, label]) => (
             <button
               key={id}
-              className={filter === id ? "selected" : ""}
+              aria-pressed={filter === id}
               onClick={() => update({ verdict: id })}
             >
               {label}
@@ -263,11 +280,8 @@ export function TasksPage() {
           ))}
           <select
             aria-label="更多状态"
-            value={
-              ["all", "running", "success", "failed"].includes(filter)
-                ? ""
-                : filter
-            }
+            className={extraStatus ? "active" : undefined}
+            value={extraStatus}
             onChange={(e) => update({ verdict: e.target.value || "all" })}
           >
             <option value="">更多</option>
@@ -303,6 +317,8 @@ export function TasksPage() {
                   <Link
                     to="/tasks/$runId"
                     params={{ runId: run.run_id }}
+                    state={() => ({ taskListOrigin: { search, scrollTop: window.scrollY, runId: run.run_id } })}
+                    ref={returning?.runId === run.run_id ? returnedTask : undefined}
                     className="run-title run-primary"
                     title={run.task || run.run_id}
                   >
@@ -337,6 +353,7 @@ export function TasksPage() {
                         to="/tasks/$runId"
                         params={{ runId: run.run_id }}
                         search={{ tab: "stages", stage: fault }}
+                        state={() => ({ taskListOrigin: { search, scrollTop: window.scrollY, runId: run.run_id } })}
                         className="stage-caption run-fault"
                       >
                         定位{stageLabels[fault]}

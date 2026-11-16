@@ -14,15 +14,16 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-function DeviceSpecs({ device }: { device: Device }) {
-  const battery = device.battery_percent;
-  const batteryLabel = typeof battery === "number" && battery >= 0 && battery <= 100
+function batteryLabel(battery: Device["battery_percent"]) {
+  return typeof battery === "number" && battery >= 0 && battery <= 100
     ? `${battery}%`
     : undefined;
+}
 
+function DeviceSpecs({ device }: { device: Device }) {
   const specs = [
     ["当前版本", device.version],
-    ["剩余电量", batteryLabel],
+    ["剩余电量", batteryLabel(device.battery_percent)],
     ["芯片型号", device.chip_model],
     ["产品型号", device.product_model],
   ] as const;
@@ -109,7 +110,7 @@ export function HardwarePage() {
             ].map(([key, label]) => (
               <button
                 key={key}
-                className={filter === key ? "selected" : ""}
+                aria-pressed={filter === key}
                 onClick={() => setFilter(key)}
               >
                 {label}
@@ -158,6 +159,29 @@ export function HardwarePage() {
                 : offline
                   ? "offline"
                   : "idle";
+            const taskLink = d.busy && d.busy_by && (
+              <Link to="/tasks/$runId" params={{ runId: d.busy_by }} className="device-link">
+                {d.busy_by}
+                <ArrowUpRight size={14} aria-hidden="true" />
+              </Link>
+            );
+            const protocol = !offline && <span className="device-protocol">{d.state.toUpperCase()}</span>;
+            if (compact) {
+              return (
+                <section className={`panel device-row${offline ? " offline-device" : ""}`} key={d.sn}>
+                  <div className="device-row-identity">
+                    <h3 className="mono">{d.sn}</h3>
+                    {protocol}
+                  </div>
+                  <div className="device-row-status"><Badge status={availability} /></div>
+                  <div className="device-row-battery">
+                    <span>电量</span>
+                    <strong>{batteryLabel(d.battery_percent) ?? "—"}</strong>
+                  </div>
+                  {taskLink}
+                </section>
+              );
+            }
             return (
               <section
                 className={`panel device-card ${offline ? "offline-device" : ""}`}
@@ -168,7 +192,7 @@ export function HardwarePage() {
                     <Cpu size={24} aria-hidden="true" />
                   </span>
                   <h3 className="mono">{d.sn}</h3>
-                  {!offline && <Badge status={d.state} />}
+                  {protocol}
                 </div>
                 {d.raw_state &&
                   d.raw_state.toLowerCase() !== d.state.toLowerCase() && (
@@ -181,16 +205,7 @@ export function HardwarePage() {
                   )}
                 </div>
                 <DeviceSpecs device={d} />
-                {d.busy && d.busy_by && (
-                  <Link
-                    to="/tasks/$runId"
-                    params={{ runId: d.busy_by }}
-                    className="device-link"
-                  >
-                    {d.busy_by}
-                    <ArrowUpRight size={14} />
-                  </Link>
-                )}
+                {taskLink}
               </section>
             );
           })}

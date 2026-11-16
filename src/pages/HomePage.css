@@ -24,6 +24,7 @@
   background: var(--canvas);
   color: var(--text);
 }
+.home-scene:not(.home-scene--art) { padding-block-end: min(9svh, 72px); }
 
 .home-scene--art {
   --home-ink: light-dark(#17283b, #f6f3e9);
@@ -75,7 +76,7 @@
   justify-self: center;
   display: grid;
   justify-items: center;
-  gap: 22px;
+  gap: clamp(28px, 4vw, 44px);
   min-width: 0;
   padding: 36px 24px;
 }
@@ -88,11 +89,11 @@
 
 .home-scene-content h1 {
   color: inherit;
-  font-family: "HarmonyOS Sans SC", sans-serif;
-  font-size: clamp(46px, 5.8vw, 88px);
+  font-family: "JetBrains Mono", monospace;
+  font-size: clamp(40px, 4.8vw, 72px);
   font-weight: 800;
   line-height: 1.05;
-  letter-spacing: .045em;
+  letter-spacing: -.045em;
 }
 
 .home-scene--art .home-scene-content h1 {
@@ -100,6 +101,16 @@
     0 2px light-dark(#fafcff, #080f1b),
     0 8px 32px light-dark(#edf5fbaf, #02070e9c);
 }
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px clamp(14px, 2vw, 22px);
+}
+.home-scene--art .home-actions { justify-content: flex-start; }
+.home-actions > .button { min-height: 44px; }
 
 .home-launch {
   display: inline-flex;
@@ -157,9 +168,8 @@
         var(--home-veil-edge) 45%,
         transparent 62%);
   }
-  .home-scene-content { gap: 18px; }
   .home-scene--art .home-scene-content { padding: 24px 18px 58px; }
-  .home-scene-content h1 { font-size: clamp(32px, 8vw, 56px); }
+  .home-scene-content h1 { font-size: clamp(24px, 7vw, 56px); }
 }
 
 @media (prefers-reduced-motion: no-preference) {

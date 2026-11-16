@@ -81,6 +81,7 @@ export function TaskDetailPage() {
       to: "/tasks/$runId",
       params: { runId },
       search: { tab: "stages", stage: name },
+      state: true,
       resetScroll: false,
     });
   }
@@ -143,12 +144,15 @@ export function TaskDetailPage() {
         ].map(([id, label]) => (
           <button
             className={tab === id ? "active" : ""}
+            aria-pressed={tab === id}
             key={id}
             onClick={() =>
               navigate({
                 to: "/tasks/$runId",
                 params: { runId },
                 search: { tab: id },
+                state: true,
+                resetScroll: false,
               })
             }
           >

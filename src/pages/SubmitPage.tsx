@@ -146,6 +146,13 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
   const functions = splitValues(draft.caseText, /\n/);
   const usesCustomCases = draft.testMode === "cases";
   const missingCases = test && usesCustomCases && !functions.length;
+  const issue = !active.length
+    ? { target: "release-first-stage", label: "启用至少一个执行阶段" }
+    : missingPath
+      ? { target: "release-root-path", label: "填写 Root 代码路径" }
+      : missingCases
+        ? { target: "release-test-cases", label: "填写至少一个测试用例" }
+        : undefined;
   const profileCaseCount = config.profile_details[draft.profile]?.functions.length;
   const branch = typeof config.readonly.branch === "string" ? config.readonly.branch : "";
   const product = typeof config.readonly.product === "string" ? config.readonly.product : "";
@@ -182,7 +189,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
 
   function publish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!active.length || missingPath || missingCases || submit.isPending) return;
+    if (issue || submit.isPending) return;
     submit.mutate({
       payload: {
         config: picker.name,
@@ -217,7 +224,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
             <span className="release-stage-count" aria-live="polite">执行 {active.length} / {stages.length}</span>
           </header>
           <ol className="panel release-stages">
-            {stages.map((stage) => {
+            {stages.map((stage, index) => {
               const enabled = active.includes(stage);
               const summary = summaries[stage];
               const summaryId = `release-summary-${stage}`;
@@ -233,6 +240,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
                     <span className="release-stage-toggle">
                       <span aria-hidden="true">{enabled ? "执行" : "跳过"}</span>
                       <input
+                        id={index === 0 ? "release-first-stage" : undefined}
                         type="checkbox"
                         role="switch"
                         aria-label={stageLabels[stage]}
@@ -259,6 +267,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
               </header>
               <p id="release-path-help">已跳过环境准备。填写已有代码的根目录，例如 <code>D:\work\tee-root</code>。</p>
               <input
+                id="release-root-path"
                 aria-labelledby="release-path-title"
                 aria-describedby={missingPath ? "release-path-help release-path-error" : "release-path-help"}
                 aria-invalid={missingPath}
@@ -370,6 +379,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
                 <label className="field">
                   测试用例
                   <textarea
+                    id="release-test-cases"
                     rows={3}
                     required
                     aria-invalid={missingCases}
@@ -398,14 +408,29 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
           </section>
         </div>
 
-        <div className="release-publish">
-          {!active.length && <p className="release-warning" role="alert">请至少将一个阶段设为「执行」。</p>}
-          <ErrorBox error={submit.error} />
-          <button className="button primary cta full" type="submit" disabled={!active.length || missingPath || missingCases || submit.isPending}>
+        <div className="panel release-publish">
+          <div className="release-publish-summary" aria-live="polite">
+            <strong>执行 {active.length} / {stages.length} 个阶段</strong>
+            {issue && (
+              <button
+                type="button"
+                className="release-fix"
+                onClick={(event) => {
+                  const field = event.currentTarget.form?.querySelector<HTMLElement>(`#${issue.target}`);
+                  field?.focus();
+                  field?.scrollIntoView({ block: "nearest" });
+                }}
+              >
+                {issue.label} <ArrowRight size={14} aria-hidden="true" />
+              </button>
+            )}
+          </div>
+          <button className="button primary cta" type="submit" disabled={Boolean(issue) || submit.isPending}>
             {submit.isPending ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <Zap size={17} aria-hidden="true" />}
             {submit.isPending ? "正在发布…" : isDemo ? "发布演示任务" : "发布任务"}
             <ArrowRight className="cta-arrow" size={16} aria-hidden="true" />
           </button>
+          <ErrorBox error={submit.error} />
         </div>
       </div>
     </form>

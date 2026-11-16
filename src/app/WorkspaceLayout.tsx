@@ -4,6 +4,7 @@ import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { ErrorBox } from "../components/Feedback";
 import { ThemeMenu } from "../components/ThemeMenu";
 import { api, isDemo } from "../lib/api";
+import { taskListReturnOptions } from "../lib/taskListNavigation";
 import {
   ArrowUpRight,
   ChevronRight,
@@ -17,13 +18,14 @@ import {
 } from "lucide-react";
 
 export function WorkspaceLayout() {
-  const path = useLocation().pathname;
+  const { pathname: path, state } = useLocation();
   const isHome = path === "/";
   const [navigation, setNavigation] = useState<{
     path: string;
     motion?: "enter" | "return" | "peer";
   }>({ path });
   const isTaskDetail = path.startsWith("/tasks/");
+  const taskListReturn = isTaskDetail ? taskListReturnOptions(state.taskListOrigin) : {};
   const isSubmit = path === "/submit";
   const pageTitle =
     path === "/hardware"
@@ -62,6 +64,7 @@ export function WorkspaceLayout() {
         <nav aria-label="工作台">
           <Link
             to="/tasks"
+            {...taskListReturn}
             className={path.startsWith("/tasks") ? "active" : ""}
           >
             <LayoutGrid size={18} />
@@ -122,7 +125,7 @@ export function WorkspaceLayout() {
             <ChevronRight size={13} aria-hidden="true" />
             {isTaskDetail && (
               <>
-                <Link to="/tasks" className="breadcrumb-parent">
+                <Link to="/tasks" {...taskListReturn} className="breadcrumb-parent">
                   任务中心
                 </Link>
                 <ChevronRight size={13} aria-hidden="true" />
