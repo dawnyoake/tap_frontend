@@ -6,13 +6,13 @@ import { ThemeMenu } from "../components/ThemeMenu";
 import { api, isDemo } from "../lib/api";
 import { taskListReturnOptions } from "../lib/taskListNavigation";
 import {
-  ArrowUpRight,
+  ArrowLeftRight,
   ChevronRight,
   CircleHelp,
   Cpu,
   House,
   Layers,
-  LayoutGrid,
+  ListTodo,
   Plus,
   X,
 } from "lucide-react";
@@ -55,7 +55,7 @@ export function WorkspaceLayout() {
           activeOptions={{ exact: true }}
         >
           <span className="brand-icon">
-            <Layers size={22} />
+            <Layers size={22} aria-hidden="true" />
           </span>
           <span>
             TEE <b>Pipeline</b>
@@ -67,15 +67,15 @@ export function WorkspaceLayout() {
             {...taskListReturn}
             className={path.startsWith("/tasks") ? "active" : ""}
           >
-            <LayoutGrid size={18} />
+            <ListTodo size={18} aria-hidden="true" />
             任务中心
           </Link>
           <Link to="/hardware" className={path === "/hardware" ? "active" : ""}>
-            <Cpu size={18} />
+            <Cpu size={18} aria-hidden="true" />
             硬件资源
           </Link>
           <Link to="/submit" className={path === "/submit" ? "active" : ""}>
-            <Plus size={18} />
+            <Plus size={18} aria-hidden="true" />
             发布任务
           </Link>
         </nav>
@@ -92,13 +92,13 @@ export function WorkspaceLayout() {
               }}
             >
               {isDemo ? "切换真实接口" : "切换演示数据"}
-              <ArrowUpRight size={13} />
+              <ArrowLeftRight size={14} aria-hidden="true" />
             </button>
           </div>
           <button className="help" onClick={() => setHelp(true)}>
-            <CircleHelp size={17} />
+            <CircleHelp size={16} aria-hidden="true" />
             使用说明
-            <ArrowUpRight size={14} />
+            <ChevronRight size={14} aria-hidden="true" />
           </button>
           <div className="profile">
             <span className="avatar">U</span>
@@ -167,7 +167,7 @@ export function WorkspaceLayout() {
               onClick={() => setHelp(false)}
               aria-label="关闭"
             >
-              <X />
+              <X size={18} aria-hidden="true" />
             </button>
             <h2>使用说明</h2>
             <p>1. 发布任务：选择配置、样机和测试范围。</p>

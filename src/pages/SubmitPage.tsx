@@ -2,17 +2,19 @@ import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import {
-  ArrowRight,
+  Crosshair,
   Cpu,
   FlaskConical,
   FolderCode,
   GitPullRequest,
   LoaderCircle,
   ListChecks,
+  ListPlus,
   Layers,
   Plus,
+  Send,
+  SlidersHorizontal,
   StickyNote,
-  Zap,
 } from "lucide-react";
 import { Empty, ErrorBox, Loading } from "../components/Feedback";
 import { useDevices } from "../hooks/queries";
@@ -64,6 +66,7 @@ function PipelineConfig({
   return (
     <section className="release-base" aria-labelledby="release-configs-title">
       <header className="release-section-heading">
+        <span className="release-section-icon"><SlidersHorizontal size={16} aria-hidden="true" /></span>
         <h2 id="release-configs-title">任务配置</h2>
       </header>
       <div className="panel release-card">
@@ -220,6 +223,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
         />
         <section className="release-stage-list" aria-labelledby="release-stages-title">
           <header className="release-section-heading">
+            <span className="release-section-icon"><ListChecks size={16} aria-hidden="true" /></span>
             <h2 id="release-stages-title">执行阶段</h2>
             <span className="release-stage-count" aria-live="polite">执行 {active.length} / {stages.length}</span>
           </header>
@@ -262,7 +266,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
           {needsRootPath && (
             <section className={`panel release-card release-path${missingPath ? " needs-value" : ""}`} aria-labelledby="release-path-title">
               <header>
-                <h3 id="release-path-title"><FolderCode size={17} aria-hidden="true" />Root 代码路径</h3>
+                <h3 id="release-path-title"><FolderCode size={16} aria-hidden="true" />Root 代码路径</h3>
                 <span>必填</span>
               </header>
               <p id="release-path-help">已跳过环境准备。填写已有代码的根目录，例如 <code>D:\work\tee-root</code>。</p>
@@ -283,7 +287,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
           {prepare && (
             <section className="panel release-card" aria-labelledby="release-source-title">
               <header>
-                <h3 id="release-source-title"><GitPullRequest size={17} aria-hidden="true" />代码来源</h3>
+                <h3 id="release-source-title"><GitPullRequest size={16} aria-hidden="true" />代码来源</h3>
                 <span>环境准备</span>
               </header>
               <label className="field">
@@ -304,7 +308,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
           {usesDevice && (
             <section className="panel release-card" aria-labelledby="release-device-title">
               <header>
-                <h3 id="release-device-title"><Cpu size={17} aria-hidden="true" />目标设备</h3>
+                <h3 id="release-device-title"><Cpu size={16} aria-hidden="true" />目标设备</h3>
                 <span>{[flash && "设备烧录", test && "自动测试"].filter(Boolean).join(" / ")}</span>
               </header>
               <label className="field">
@@ -342,19 +346,19 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
           {test && (
             <section className="panel release-card" aria-labelledby="release-test-title">
               <header>
-                <h3 id="release-test-title"><FlaskConical size={17} aria-hidden="true" />测试配置</h3>
+                <h3 id="release-test-title"><FlaskConical size={16} aria-hidden="true" />测试配置</h3>
               </header>
               <div className="release-test-modes" role="group" aria-label="测试方式">
                 <label>
                   <input type="radio" name="test-mode" checked={!usesCustomCases} disabled={submit.isPending}
                     onChange={() => updateDraft({ testMode: "profile" })} />
-                  <Layers size={17} aria-hidden="true" />
+                  <Layers size={16} aria-hidden="true" />
                   <span>按 Profile</span>
                 </label>
                 <label>
                   <input type="radio" name="test-mode" checked={usesCustomCases} disabled={submit.isPending}
                     onChange={() => updateDraft({ testMode: "cases" })} />
-                  <ListChecks size={17} aria-hidden="true" />
+                  <ListPlus size={16} aria-hidden="true" />
                   <span>自选用例</span>
                 </label>
               </div>
@@ -395,7 +399,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
           )}
           <section className="panel release-card" aria-labelledby="release-remark-title">
             <header>
-              <h3 id="release-remark-title"><StickyNote size={17} aria-hidden="true" />备注</h3>
+              <h3 id="release-remark-title"><StickyNote size={16} aria-hidden="true" />备注</h3>
               <span>可选</span>
             </header>
             <textarea
@@ -409,26 +413,24 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
         </div>
 
         <div className="panel release-publish">
-          <div className="release-publish-summary" aria-live="polite">
-            <strong>执行 {active.length} / {stages.length} 个阶段</strong>
-            {issue && (
-              <button
-                type="button"
-                className="release-fix"
-                onClick={(event) => {
-                  const field = event.currentTarget.form?.querySelector<HTMLElement>(`#${issue.target}`);
-                  field?.focus();
-                  field?.scrollIntoView({ block: "nearest" });
-                }}
-              >
-                {issue.label} <ArrowRight size={14} aria-hidden="true" />
-              </button>
-            )}
-          </div>
+          {issue && (
+            <button
+              type="button"
+              className="release-fix"
+              onClick={(event) => {
+                const field = event.currentTarget.form?.querySelector<HTMLElement>(`#${issue.target}`);
+                field?.focus();
+                field?.scrollIntoView({ block: "nearest" });
+              }}
+            >
+              {issue.label} <Crosshair size={14} aria-hidden="true" />
+            </button>
+          )}
           <button className="button primary cta" type="submit" disabled={Boolean(issue) || submit.isPending}>
-            {submit.isPending ? <LoaderCircle size={17} className="spin" aria-hidden="true" /> : <Zap size={17} aria-hidden="true" />}
             {submit.isPending ? "正在发布…" : isDemo ? "发布演示任务" : "发布任务"}
-            <ArrowRight className="cta-arrow" size={16} aria-hidden="true" />
+            {submit.isPending
+              ? <LoaderCircle size={16} className="spin" aria-hidden="true" />
+              : <Send size={16} className="cta-arrow" aria-hidden="true" />}
           </button>
           <ErrorBox error={submit.error} />
         </div>

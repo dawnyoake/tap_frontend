@@ -5,7 +5,7 @@ import { Empty, ErrorBox, Loading } from "../components/Feedback";
 import { useDevices } from "../hooks/queries";
 import { stageLabels, type Device } from "../lib/api";
 import {
-  ArrowUpRight,
+  ChevronRight,
   List,
   Cpu,
   LayoutGrid,
@@ -66,7 +66,7 @@ export function HardwarePage() {
     <>
       <div className="hardware-overview panel">
         <div className="host-icon">
-          <Monitor size={26} />
+          <Monitor size={24} aria-hidden="true" />
         </div>
         <div>
           <h3>{result.data?.ssh_host || "设备主机"}</h3>
@@ -133,11 +133,11 @@ export function HardwarePage() {
             </button>
           </div>
           <button className="button" onClick={() => result.refetch()}>
-            <RefreshCw size={15} className={result.isFetching ? "spin" : ""} />
+            <RefreshCw size={16} aria-hidden="true" className={result.isFetching ? "spin" : ""} />
             刷新设备
           </button>
           <Link to="/submit" className="button primary cta">
-            <Plus size={16} />
+            <Plus size={16} aria-hidden="true" />
             发布任务
           </Link>
         </div>
@@ -162,7 +162,7 @@ export function HardwarePage() {
             const taskLink = d.busy && d.busy_by && (
               <Link to="/tasks/$runId" params={{ runId: d.busy_by }} className="device-link">
                 {d.busy_by}
-                <ArrowUpRight size={14} aria-hidden="true" />
+                <ChevronRight size={14} aria-hidden="true" />
               </Link>
             );
             const protocol = !offline && <span className="device-protocol">{d.state.toUpperCase()}</span>;

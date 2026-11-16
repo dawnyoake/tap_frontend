@@ -10,11 +10,12 @@ import { artifactAction } from "../lib/artifacts";
 import { findFaultStage } from "../lib/runStages";
 import {
   ArrowDownToLine,
-  ArrowUpRight,
   ChevronDown,
+  Crosshair,
   ExternalLink,
   FileText,
   GitBranch,
+  Package,
   Plus,
   RefreshCw,
   Search,
@@ -47,7 +48,7 @@ function RunDownloads({ run }: { run: Run }) {
         aria-expanded={expanded}
         popoverTarget={popoverId}
       >
-        <ArrowDownToLine size={14} aria-hidden="true" />产物
+        <Package size={14} aria-hidden="true" />产物
         <ChevronDown className="run-download-chevron" size={12} aria-hidden="true" />
       </button>
       <div
@@ -225,18 +226,18 @@ export function TasksPage() {
         </div>
         <div className="content-actions">
           <button className="button" onClick={() => result.refetch()}>
-            <RefreshCw size={15} className={result.isFetching ? "spin" : ""} />
+            <RefreshCw size={16} aria-hidden="true" className={result.isFetching ? "spin" : ""} />
             刷新
           </button>
           <Link to="/submit" className="button primary cta">
-            <Plus size={17} />
+            <Plus size={16} aria-hidden="true" />
             发布任务
           </Link>
         </div>
       </div>
       <div className="filters">
         <label className="search">
-          <Search size={16} />
+          <Search size={16} aria-hidden="true" />
           <input
             aria-label="搜索任务"
             placeholder="搜索任务 ID、分支、平台…"
@@ -248,7 +249,7 @@ export function TasksPage() {
               aria-label="清空搜索"
               onClick={() => update({ q: "" })}
             >
-              <X size={14} />
+              <X size={14} aria-hidden="true" />
             </button>
           )}
         </label>
@@ -357,7 +358,7 @@ export function TasksPage() {
                         className="stage-caption run-fault"
                       >
                         定位{stageLabels[fault]}
-                        <ArrowUpRight size={12} aria-hidden="true" />
+                        <Crosshair size={12} aria-hidden="true" />
                       </Link>
                     ) : (
                       <small className="stage-caption">

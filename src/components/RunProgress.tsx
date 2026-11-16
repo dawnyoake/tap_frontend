@@ -8,7 +8,7 @@ import {
   type Status,
 } from "../lib/api";
 import { getStageStatus, isStageFault, type StageName } from "../lib/runStages";
-import { Check, Clock3, LoaderCircle, X } from "lucide-react";
+import { Check, LoaderCircle, TimerOff, X } from "lucide-react";
 
 export function Progress({ run }: { run: Run }) {
   const segments = stages.map((name, index) => {
@@ -66,7 +66,7 @@ export function Pipeline({
               ) : status === "failed" ? (
                 <X size={14} />
               ) : status === "timeout" ? (
-                <Clock3 size={14} />
+                <TimerOff size={14} />
               ) : (
                 i + 1
               )}

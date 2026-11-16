@@ -14,13 +14,13 @@ import { usePolling } from "../hooks/queries";
 import { api, stages, stageLabels, duration } from "../lib/api";
 import { findFaultStage, isStageFault, type StageName } from "../lib/runStages";
 import {
-  Activity,
-  ArrowDownRight,
-  Box,
   CircleAlert,
-  Clock3,
+  Crosshair,
+  FlaskConical,
+  Info,
+  Package,
   RefreshCw,
-  Settings2,
+  TimerOff,
   Trash2,
 } from "lucide-react";
 import "./TaskDetailPage.css";
@@ -98,7 +98,7 @@ export function TaskDetailPage() {
           </div>
           <div className="content-actions">
             <button className="button" onClick={() => detail.refetch()}>
-              <RefreshCw size={15} className={detail.isFetching ? "spin" : ""} />
+              <RefreshCw size={16} aria-hidden="true" className={detail.isFetching ? "spin" : ""} />
               刷新
             </button>
             <button
@@ -107,7 +107,7 @@ export function TaskDetailPage() {
               disabled={d.is_running}
               onClick={() => setConfirm(true)}
             >
-              <Trash2 size={17} />
+              <Trash2 size={16} aria-hidden="true" />
             </button>
           </div>
         </header>
@@ -118,13 +118,13 @@ export function TaskDetailPage() {
         </dl>
         {fault && (
           <div className={`diagnostic-fault ${faultStatus}`}>
-            {faultStatus === "timeout" ? <Clock3 size={19} aria-hidden="true" /> : <CircleAlert size={19} aria-hidden="true" />}
+            {faultStatus === "timeout" ? <TimerOff size={18} aria-hidden="true" /> : <CircleAlert size={18} aria-hidden="true" />}
             <div>
               <strong>{stageLabels[fault]}{faultStatus === "timeout" ? "超时" : "失败"}</strong>
               {(faultStage?.error || faultStage?.summary) && <p>{faultStage.error || faultStage.summary}</p>}
             </div>
             <button type="button" className="button" onClick={() => jumpToStage(fault)}>
-              查看故障阶段 <ArrowDownRight size={15} aria-hidden="true" />
+              查看故障阶段 <Crosshair size={14} aria-hidden="true" />
             </button>
           </div>
         )}
@@ -169,7 +169,7 @@ export function TaskDetailPage() {
             <section className="panel">
               <div className="panel-title">
                 <h2>任务信息</h2>
-                <Settings2 size={16} />
+                <Info size={16} aria-hidden="true" />
               </div>
               <dl className="info-grid">
                 {[
@@ -190,7 +190,7 @@ export function TaskDetailPage() {
             <section className="panel">
               <div className="panel-title">
                 <h2>测试概况</h2>
-                <Activity size={16} />
+                <FlaskConical size={16} aria-hidden="true" />
               </div>
               {r.test_summary ? (
                 <div className="test-summary">
@@ -268,7 +268,7 @@ export function TaskDetailPage() {
               (s.artifacts || []).map((a, i) => (
                 <div className="artifact-row" key={s.name + i}>
                   <span className="file-icon">
-                    <Box size={20} />
+                    <Package size={18} aria-hidden="true" />
                   </span>
                   <div>
                     <b>{a.name}</b>

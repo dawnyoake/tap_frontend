@@ -32,7 +32,7 @@ export function JsonPanel({ value }: { value: unknown }) {
           className="button"
           onClick={() => copy(JSON.stringify(value, null, 2), set)}
         >
-          <Copy size={14} />
+          <Copy size={14} aria-hidden="true" />
           {msg || "复制 JSON"}
         </button>
       </div>

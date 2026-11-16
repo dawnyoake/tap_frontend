@@ -1,5 +1,5 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
-import { ArrowRight, LayoutGrid } from "lucide-react";
+import { ArrowRight, ListTodo } from "lucide-react";
 import "./HomePage.css";
 
 const homeRoute = getRouteApi("/");
@@ -34,7 +34,7 @@ export function HomePage() {
             <ArrowRight className="cta-arrow" size={18} aria-hidden="true" />
           </Link>
           <Link to="/tasks" search={{ mine: true }} className="button">
-            <LayoutGrid size={16} aria-hidden="true" /> 查看我的任务
+            <ListTodo size={16} aria-hidden="true" /> 查看我的任务
           </Link>
         </div>
       </div>

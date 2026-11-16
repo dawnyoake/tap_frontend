@@ -3,10 +3,10 @@
   max-width: 1150px;
 }
 
-.release-section-heading,
 .release-card header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
 }
 
@@ -56,25 +56,27 @@
   grid-area: publish;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  padding: 12px 16px;
+  gap: 10px;
+  padding: 10px;
 }
-.release-publish-summary {
-  display: grid;
-  justify-items: start;
-  gap: 4px;
-  color: var(--text-secondary);
-  font-size: 13px;
+.release-publish .button.cta {
+  --cta-halo: rgb(64 103 232 / 12%);
+  min-height: 48px;
+  border-radius: 5px;
+  font-size: 14px;
 }
 .release-fix {
   display: inline-flex;
   align-items: center;
+  justify-self: start;
   gap: 4px;
+  padding: 2px 4px;
   color: var(--release-warning-ink);
+  font-size: 13px;
   text-align: start;
   text-decoration: underline;
   text-underline-offset: 3px;
 }
-.release-publish > .error { grid-column: 1 / -1; }
 .release-base,
 .release-stage-list,
 .release-configs { gap: 12px; }
@@ -84,20 +86,42 @@
   margin-bottom: 10px;
 }
 
-.release-section-heading,
-.release-card header {
-  justify-content: space-between;
+.release-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 0 9px;
+  border-bottom: 1px solid var(--line-control);
 }
 
-.release-section-heading { min-height: 26px; }
-.release-section-heading h2 { margin: 0; }
+.release-section-heading h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+}
 
-.release-stage-count {
-  padding: 3px 7px;
-  border-radius: 5px;
+.release-section-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  height: 30px;
+  border-radius: 6px;
   background: var(--surface-selected);
   color: var(--blue);
+}
+
+.release-stage-count {
+  margin-inline-start: auto;
+  padding: 3px 7px;
+  border: 1px solid var(--line-control);
+  border-radius: 5px;
+  background: var(--surface);
+  color: var(--text-secondary);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -303,10 +327,8 @@
     row-gap: 22px;
   }
   .release-layout-loading { grid-template-areas: "base"; }
-  .release-publish { grid-template-columns: minmax(0, 1fr) auto; }
 }
 
 @container (max-width: 420px) {
   .release-test-modes label { padding-inline: 7px; }
-  .release-publish { grid-template-columns: minmax(0, 1fr); }
 }
