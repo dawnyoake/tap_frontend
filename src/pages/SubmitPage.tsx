@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import {
+  ArrowLeft,
+  ArrowRight,
   Crosshair,
   Cpu,
   FlaskConical,
   FolderCode,
+  GitCommitHorizontal,
   GitPullRequest,
   LoaderCircle,
   ListChecks,
@@ -25,6 +28,21 @@ import "./SubmitPage.css";
 
 type StageName = (typeof stages)[number];
 type TestMode = "profile" | "cases";
+const submitRoute = getRouteApi("/submit");
+const submitSources = [
+  {
+    source: "change-id",
+    title: "从 Change-Id 开始",
+    description: "适合已有代码变更的 Change-Id，准备发起构建和测试。",
+    icon: GitCommitHorizontal,
+  },
+  {
+    source: "root-mr",
+    title: "从 Root MR 开始",
+    description: "适合已有 Root MR，准备以它作为本次任务的代码来源。",
+    icon: GitPullRequest,
+  },
+] as const;
 
 function splitValues(value: string, delimiter: RegExp) {
   return value.split(delimiter).map((item) => item.trim()).filter(Boolean);
@@ -93,6 +111,40 @@ function PipelineConfig({
 }
 
 export function SubmitPage() {
+  const { source } = submitRoute.useSearch();
+  const selected = submitSources.find((option) => option.source === source);
+
+  if (selected) {
+    return (
+      <div className="release-source-form">
+        <div className="release-source-path">
+          <Link to="/submit" search={{}}>
+            <ArrowLeft size={15} aria-hidden="true" /> 重选起点
+          </Link>
+          <span>{selected.title}</span>
+        </div>
+        <SubmitConfiguration key={source} />
+      </div>
+    );
+  }
+
+  return (
+    <section className="release-source-options" aria-label="选择任务起点">
+      {submitSources.map(({ source, title, description, icon: Icon }) => (
+        <Link key={source} to="/submit" search={{ source }} resetScroll className="panel release-source-option">
+          <span className="release-source-icon"><Icon size={28} aria-hidden="true" /></span>
+          <div className="release-source-copy">
+            <h2>{title}</h2>
+            <p>{description}</p>
+          </div>
+          <ArrowRight className="release-source-arrow" size={20} aria-hidden="true" />
+        </Link>
+      ))}
+    </section>
+  );
+}
+
+function SubmitConfiguration() {
   const [name, setName] = useState("");
   const configs = useQuery({ queryKey: ["configs"], queryFn: api.configs });
   const options = configs.data?.configs ?? [];

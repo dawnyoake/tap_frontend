@@ -49,6 +49,11 @@ const submitRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/submit",
   component: SubmitPage,
+  validateSearch: (search: Record<string, unknown>) => ({
+    source: search.source === "change-id" || search.source === "root-mr"
+      ? search.source
+      : undefined,
+  }),
 });
 const hardwareRoute = createRoute({
   getParentRoute: () => rootRoute,
