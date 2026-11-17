@@ -6,16 +6,21 @@ import { ThemeMenu } from "../components/ThemeMenu";
 import { api, isDemo } from "../lib/api";
 import { taskListReturnOptions } from "../lib/taskListNavigation";
 import {
+  ArrowLeft,
   ArrowLeftRight,
   ChevronRight,
   CircleHelp,
   Cpu,
-  House,
   Layers,
   ListTodo,
   Plus,
   X,
 } from "lucide-react";
+
+function toggleEnvironment() {
+  localStorage.setItem("tee-mode", isDemo ? "live" : "demo");
+  location.reload();
+}
 
 export function WorkspaceLayout() {
   const { pathname: path, state } = useLocation();
@@ -45,9 +50,11 @@ export function WorkspaceLayout() {
   }
   const [help, setHelp] = useState(false);
   const me = useQuery({ queryKey: ["me"], queryFn: api.me });
+  const environmentAction = isDemo ? "切换真实接口" : "切换演示数据";
+  const environmentLabel = isDemo ? "演示环境" : "真实接口";
   return (
     <div className={isHome ? "app app-home" : "app"}>
-      <aside className="sidebar">
+      <header className="workspace-header">
         <Link
           to="/"
           className="brand"
@@ -55,12 +62,27 @@ export function WorkspaceLayout() {
           activeOptions={{ exact: true }}
         >
           <span className="brand-icon">
-            <Layers size={22} aria-hidden="true" />
+            <Layers size={17} aria-hidden="true" />
           </span>
           <span>
             TEE <b>Pipeline</b>
           </span>
         </Link>
+        <div className="workspace-header-actions">
+          <button
+            type="button"
+            className="workspace-environment-switch"
+            aria-label={`${environmentLabel} · ${environmentAction}`}
+            title={environmentAction}
+            onClick={toggleEnvironment}
+          >
+            {environmentLabel}
+            <ArrowLeftRight size={14} aria-hidden="true" />
+          </button>
+          <ThemeMenu />
+        </div>
+      </header>
+      <aside className="sidebar">
         <nav aria-label="工作台">
           <Link
             to="/tasks"
@@ -80,21 +102,6 @@ export function WorkspaceLayout() {
           </Link>
         </nav>
         <div className="sidebar-bottom">
-          <div className="env-card">
-            <span className="online-dot" /> {isDemo ? "演示环境" : "接口环境"}
-            <small>
-              {isDemo ? "当前展示脱敏示例数据" : "连接同源 FastAPI 服务"}
-            </small>
-            <button
-              onClick={() => {
-                localStorage.setItem("tee-mode", isDemo ? "live" : "demo");
-                location.reload();
-              }}
-            >
-              {isDemo ? "切换真实接口" : "切换演示数据"}
-              <ArrowLeftRight size={14} aria-hidden="true" />
-            </button>
-          </div>
           <button className="help" onClick={() => setHelp(true)}>
             <CircleHelp size={16} aria-hidden="true" />
             使用说明
@@ -102,52 +109,23 @@ export function WorkspaceLayout() {
           </button>
           <div className="profile">
             <span className="avatar">U</span>
-            <div>{me.data?.label || "当前用户"}</div>
+            <div className="profile-name">{me.data?.label || "当前用户"}</div>
             <span className="online-dot" />
           </div>
         </div>
       </aside>
       <div className="shell">
-        <header className="topbar" hidden={isHome}>
-          <div
-            className={isTaskDetail ? "breadcrumbs breadcrumbs-detail" : "breadcrumbs"}
-            role="navigation"
-            aria-label="页面位置"
-          >
-            <Link
-              to="/"
-              className="breadcrumb-home"
-              aria-label="工作空间 · 返回首页"
-            >
-              <House size={15} aria-hidden="true" />
-              <span>工作空间</span>
-            </Link>
-            <ChevronRight size={13} aria-hidden="true" />
-            {isTaskDetail && (
-              <>
-                <Link to="/tasks" {...taskListReturn} className="breadcrumb-parent">
-                  任务中心
-                </Link>
-                <ChevronRight size={13} aria-hidden="true" />
-              </>
-            )}
-            <h1 aria-current="page">{pageTitle}</h1>
-          </div>
-          <div className="top-right">
-            <button
-              className="demo-tag"
-              title="切换演示与真实接口"
-              onClick={() => {
-                localStorage.setItem("tee-mode", isDemo ? "live" : "demo");
-                location.reload();
-              }}
-            >
-              {isDemo ? "DEMO · 演示数据" : "LIVE · 真实接口"}
-            </button>
-            <ThemeMenu />
-          </div>
-        </header>
         <main className={isHome ? "home-main" : undefined}>
+          {!isHome && (
+            <header className="workspace-page-heading">
+              <h1>{pageTitle}</h1>
+              {isTaskDetail && (
+                <Link to="/tasks" {...taskListReturn} className="workspace-page-return" aria-label="返回任务中心">
+                  <ArrowLeft size={14} aria-hidden="true" /> 任务中心
+                </Link>
+              )}
+            </header>
+          )}
           {!isHome && <ErrorBox error={me.error} />}
           <div key={path} data-page-motion={isHome ? undefined : navigation.motion}>
             <Outlet />

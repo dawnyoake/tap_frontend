@@ -1,4 +1,3 @@
-.shell > .topbar[hidden],
 .shell > footer[hidden] {
   display: none;
 }
@@ -18,8 +17,8 @@
   isolation: isolate;
   display: grid;
   align-items: center;
-  min-height: 100vh;
-  min-height: 100svh;
+  min-height: calc(100vh - var(--workspace-header-height));
+  min-height: calc(100svh - var(--workspace-header-height));
   overflow: hidden;
   background: var(--canvas);
   color: var(--text);

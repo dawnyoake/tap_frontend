@@ -4,20 +4,19 @@ import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft,
   ArrowRight,
+  ChevronDown,
   Crosshair,
   Cpu,
-  FlaskConical,
   FolderCode,
   GitCommitHorizontal,
   GitPullRequest,
   LoaderCircle,
   ListChecks,
-  ListPlus,
-  Layers,
   Plus,
   Send,
   SlidersHorizontal,
   StickyNote,
+  Workflow,
 } from "lucide-react";
 import { Empty, ErrorBox, Loading } from "../components/Feedback";
 import { useDevices } from "../hooks/queries";
@@ -27,18 +26,17 @@ import { demoApi } from "../lib/demoApi";
 import "./SubmitPage.css";
 
 type StageName = (typeof stages)[number];
-type TestMode = "profile" | "cases";
 const submitRoute = getRouteApi("/submit");
 const submitSources = [
   {
     source: "change-id",
-    title: "从 Change-Id 开始",
+    label: "Change-Id",
     description: "适合已有代码变更的 Change-Id，准备发起构建和测试。",
     icon: GitCommitHorizontal,
   },
   {
     source: "root-mr",
-    title: "从 Root MR 开始",
+    label: "Root MR",
     description: "适合已有 Root MR，准备以它作为本次任务的代码来源。",
     icon: GitPullRequest,
   },
@@ -49,19 +47,11 @@ function splitValues(value: string, delimiter: RegExp) {
 }
 
 function initialDraft(config: ConfigDetail) {
-  const profile = config.editable.test_profile || "";
-  const caseText = config.editable.functions.join("\n");
-  const profileCases = config.profile_details[profile]?.functions.join("\n");
-  const testMode: TestMode = caseText && (!profile || (profileCases !== undefined && caseText !== profileCases))
-    ? "cases"
-    : "profile";
   return {
     rootMR: config.editable.root_mr || "",
     rootCodePath: "",
     serials: config.editable.sn.join(", "),
-    profile,
-    caseText,
-    testMode,
+    profile: config.editable.test_profile || "",
     remark: config.editable.remark || "",
     skip: stages.filter((stage) => !config.stages.includes(stage)),
   };
@@ -79,8 +69,7 @@ function PipelineConfig({
   options,
   onChange,
   disabled,
-  onReset,
-}: ConfigPickerProps & { onReset?: () => void }) {
+}: ConfigPickerProps) {
   return (
     <section className="release-base" aria-labelledby="release-configs-title">
       <header className="release-section-heading">
@@ -89,12 +78,7 @@ function PipelineConfig({
       </header>
       <div className="panel release-card">
         <header>
-          <h3><label htmlFor="release-pipeline">流水线配置</label></h3>
-          {onReset && (
-            <button type="button" className="release-reset" disabled={disabled} onClick={onReset}>
-              重置配置
-            </button>
-          )}
+          <h3><Workflow size={16} aria-hidden="true" /><label htmlFor="release-pipeline">流水线配置</label></h3>
         </header>
         <select id="release-pipeline" value={name} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
           {options.map((config) => (
@@ -118,10 +102,10 @@ export function SubmitPage() {
     return (
       <div className="release-source-form">
         <div className="release-source-path">
-          <Link to="/submit" search={{}}>
-            <ArrowLeft size={15} aria-hidden="true" /> 重选起点
+          <Link to="/submit" search={{}} className="workspace-page-return">
+            <ArrowLeft size={14} aria-hidden="true" /> 重选起点
           </Link>
-          <span>{selected.title}</span>
+          <span>当前起点 · {selected.label}</span>
         </div>
         <SubmitConfiguration key={source} />
       </div>
@@ -130,11 +114,11 @@ export function SubmitPage() {
 
   return (
     <section className="release-source-options" aria-label="选择任务起点">
-      {submitSources.map(({ source, title, description, icon: Icon }) => (
+      {submitSources.map(({ source, label, description, icon: Icon }) => (
         <Link key={source} to="/submit" search={{ source }} resetScroll className="panel release-source-option">
           <span className="release-source-icon"><Icon size={28} aria-hidden="true" /></span>
           <div className="release-source-copy">
-            <h2>{title}</h2>
+            <h2>从 {label} 开始</h2>
             <p>{description}</p>
           </div>
           <ArrowRight className="release-source-arrow" size={20} aria-hidden="true" />
@@ -173,6 +157,7 @@ function SubmitConfiguration() {
 
 function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: ConfigDetail }) {
   const [draft, setDraft] = useState(() => initialDraft(config));
+  const [editingStages, setEditingStages] = useState(false);
   const client = useQueryClient();
   const navigate = useNavigate();
   const devices = useDevices();
@@ -186,6 +171,9 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
   });
 
   const active = stages.filter((stage) => !draft.skip.includes(stage));
+  const skipped = stages.filter((stage) => draft.skip.includes(stage));
+  const stageRows = editingStages ? stages : active;
+  const StageRow = editingStages ? "label" : "div";
   const prepare = active.includes("prepare");
   const flash = active.includes("flash");
   const test = active.includes("test");
@@ -198,17 +186,15 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
     !device.busy && device.state !== "offline" && !device.uncertain,
   ) ?? [];
   const deviceSummary = (serials.length ? serials : config.editable.sn).join("、");
-  const functions = splitValues(draft.caseText, /\n/);
-  const usesCustomCases = draft.testMode === "cases";
-  const missingCases = test && usesCustomCases && !functions.length;
+  const defaultProfile = config.editable.test_profile || "";
+  const showTestRange = test && Boolean(deviceSummary);
+  const profileCases = config.profile_details[draft.profile]?.functions
+    ?? (draft.profile === defaultProfile ? config.editable.functions : undefined);
   const issue = !active.length
-    ? { target: "release-first-stage", label: "启用至少一个执行阶段" }
+    ? { target: editingStages ? "release-first-stage" : "release-adjust-stages", label: "启用至少一个执行阶段" }
     : missingPath
       ? { target: "release-root-path", label: "填写 Root 代码路径" }
-      : missingCases
-        ? { target: "release-test-cases", label: "填写至少一个测试用例" }
-        : undefined;
-  const profileCaseCount = config.profile_details[draft.profile]?.functions.length;
+      : undefined;
   const branch = typeof config.readonly.branch === "string" ? config.readonly.branch : "";
   const product = typeof config.readonly.product === "string" ? config.readonly.product : "";
   const summaries: Partial<Record<StageName, string>> = {
@@ -223,9 +209,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
     flash: flash ? deviceSummary || "未指定设备" : undefined,
     test: test
       ? [
-          usesCustomCases
-            ? (missingCases ? "需填写测试用例" : `自选 · ${functions.length} 项用例`)
-            : (draft.profile || "默认 Profile"),
+          showTestRange && (draft.profile || "配置默认用例"),
           !flash && (deviceSummary || "未指定设备"),
         ].filter(Boolean).join(" · ")
       : undefined,
@@ -252,8 +236,8 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
           root_mr: prepare ? draft.rootMR.trim() : "",
           mr_links: [],
           sn: usesDevice ? serials : [],
-          test_profile: test && !usesCustomCases ? draft.profile : "",
-          functions: test && usesCustomCases ? functions : [],
+          test_profile: test ? (showTestRange ? draft.profile : defaultProfile) : "",
+          functions: [],
           remark: draft.remark,
         },
         stages: { from_stage: "prepare", only_stage: "", skip: draft.skip },
@@ -265,61 +249,12 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
   return (
     <form className="submit-workspace" onSubmit={publish}>
       <div className="release-layout">
-        <PipelineConfig
-          {...picker}
-          disabled={submit.isPending}
-          onReset={() => {
-            submit.reset();
-            setDraft(initialDraft(config));
-          }}
-        />
-        <section className="release-stage-list" aria-labelledby="release-stages-title">
-          <header className="release-section-heading">
-            <span className="release-section-icon"><ListChecks size={16} aria-hidden="true" /></span>
-            <h2 id="release-stages-title">执行阶段</h2>
-            <span className="release-stage-count" aria-live="polite">执行 {active.length} / {stages.length}</span>
-          </header>
-          <ol className="panel release-stages">
-            {stages.map((stage, index) => {
-              const enabled = active.includes(stage);
-              const summary = summaries[stage];
-              const summaryId = `release-summary-${stage}`;
-              return (
-                <li key={stage}>
-                  <label>
-                    <span className="release-stage-name">{stageLabels[stage]}</span>
-                    {summary && (
-                      <small id={summaryId} className={stage === "prepare" && missingPath ? "release-problem" : undefined}>
-                        {summary}
-                      </small>
-                    )}
-                    <span className="release-stage-toggle">
-                      <span aria-hidden="true">{enabled ? "执行" : "跳过"}</span>
-                      <input
-                        id={index === 0 ? "release-first-stage" : undefined}
-                        type="checkbox"
-                        role="switch"
-                        aria-label={stageLabels[stage]}
-                        aria-describedby={summary ? summaryId : undefined}
-                        checked={enabled}
-                        disabled={submit.isPending}
-                        onChange={(event) => toggleStage(stage, event.target.checked)}
-                      />
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-          </ol>
-          {!flash && test && <p className="release-warning">自动测试将使用设备现有镜像。</p>}
-        </section>
-
+        <PipelineConfig {...picker} disabled={submit.isPending} />
         <div className="release-configs">
           {needsRootPath && (
             <section className={`panel release-card release-path${missingPath ? " needs-value" : ""}`} aria-labelledby="release-path-title">
               <header>
                 <h3 id="release-path-title"><FolderCode size={16} aria-hidden="true" />Root 代码路径</h3>
-                <span>必填</span>
               </header>
               <p id="release-path-help">已跳过环境准备。填写已有代码的根目录，例如 <code>D:\work\tee-root</code>。</p>
               <input
@@ -340,7 +275,6 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
             <section className="panel release-card" aria-labelledby="release-source-title">
               <header>
                 <h3 id="release-source-title"><GitPullRequest size={16} aria-hidden="true" />代码来源</h3>
-                <span>环境准备</span>
               </header>
               <label className="field">
                 Root MR <span className="release-muted">（可选）</span>
@@ -354,115 +288,166 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
               </label>
             </section>
           )}
-          {!isDemo && !prepare && active.length > 0 && (
-            <p className="release-warning">已跳过环境准备。真实接口按流水线配置处理代码来源。</p>
-          )}
           {usesDevice && (
             <section className="panel release-card" aria-labelledby="release-device-title">
               <header>
-                <h3 id="release-device-title"><Cpu size={16} aria-hidden="true" />目标设备</h3>
-                <span>{[flash && "设备烧录", test && "自动测试"].filter(Boolean).join(" / ")}</span>
+                <h3 id="release-device-title"><Cpu size={16} aria-hidden="true" />{test ? "设备与测试" : "目标设备"}</h3>
               </header>
-              <label className="field">
-                样机 SN
-                <input
-                  value={draft.serials}
-                  disabled={submit.isPending}
-                  onChange={(event) => updateDraft({ serials: event.target.value })}
-                  placeholder="多个设备以逗号分隔"
-                />
-                {config.editable.sn.length > 0 && <small>留空时使用配置默认设备。</small>}
-              </label>
-              {availableDevices.length > 0 && (
-                <div className="device-choices">
-                  <span>在线可用</span>
-                  {availableDevices.map(({ sn }) => (
-                    <button
-                      key={sn}
-                      type="button"
-                      aria-pressed={serials.includes(sn)}
-                      className={serials.includes(sn) ? "selected" : ""}
+              <div className="release-device-test" data-testing={test}>
+                <div className="release-device-fields">
+                  <label className="field">
+                    样机 SN
+                    <input
+                      value={draft.serials}
                       disabled={submit.isPending}
-                      onClick={() => updateDraft({
-                        serials: (serials.includes(sn) ? serials.filter((value) => value !== sn) : [...serials, sn]).join(", "),
-                      })}
-                    >
-                      <Plus size={12} aria-hidden="true" />{sn}
-                    </button>
-                  ))}
+                      onChange={(event) => updateDraft({ serials: event.target.value })}
+                      placeholder="多个设备以逗号分隔"
+                    />
+                    {config.editable.sn.length > 0 && <small>留空时使用配置默认设备。</small>}
+                  </label>
+                  {availableDevices.length > 0 && (
+                    <div className="device-choices">
+                      <span>在线可用</span>
+                      {availableDevices.map(({ sn }) => (
+                        <button
+                          key={sn}
+                          type="button"
+                          aria-pressed={serials.includes(sn)}
+                          className={serials.includes(sn) ? "selected" : ""}
+                          disabled={submit.isPending}
+                          onClick={() => updateDraft({
+                            serials: (serials.includes(sn) ? serials.filter((value) => value !== sn) : [...serials, sn]).join(", "),
+                          })}
+                        >
+                          <Plus size={12} aria-hidden="true" />{sn}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <ErrorBox error={devices.error || devices.data?.error} />
                 </div>
-              )}
-              <ErrorBox error={devices.error || devices.data?.error} />
-            </section>
-          )}
-          {test && (
-            <section className="panel release-card" aria-labelledby="release-test-title">
-              <header>
-                <h3 id="release-test-title"><FlaskConical size={16} aria-hidden="true" />测试配置</h3>
-              </header>
-              <div className="release-test-modes" role="group" aria-label="测试方式">
-                <label>
-                  <input type="radio" name="test-mode" checked={!usesCustomCases} disabled={submit.isPending}
-                    onChange={() => updateDraft({ testMode: "profile" })} />
-                  <Layers size={16} aria-hidden="true" />
-                  <span>按 Profile</span>
-                </label>
-                <label>
-                  <input type="radio" name="test-mode" checked={usesCustomCases} disabled={submit.isPending}
-                    onChange={() => updateDraft({ testMode: "cases" })} />
-                  <ListPlus size={16} aria-hidden="true" />
-                  <span>自选用例</span>
-                </label>
+                {test && (
+                  <div className="release-test-reveal" data-ready={showTestRange}>
+                    <div className="release-test-hint" aria-hidden={showTestRange}>
+                      <p className="release-muted">指定设备后可选择测试 Profile。</p>
+                    </div>
+                    <div className="release-test-fields" inert={!showTestRange}>
+                      <div className="release-test-clip">
+                        <section className="release-test-config" aria-labelledby="release-test-config-title">
+                          <h4 id="release-test-config-title">已选设备的测试配置</h4>
+                          <label className="field">
+                            <span className="release-test-label">
+                              测试 Profile
+                              {profileCases && <span className="release-muted">{profileCases.length} 项用例</span>}
+                            </span>
+                            <select
+                              value={draft.profile}
+                              disabled={submit.isPending}
+                              onChange={(event) => updateDraft({ profile: event.target.value })}
+                            >
+                              {!config.test_profiles.includes(defaultProfile) && (
+                                <option value={defaultProfile}>{defaultProfile || "使用配置默认值"}</option>
+                              )}
+                              {config.test_profiles.map((profile) => <option key={profile}>{profile}</option>)}
+                            </select>
+                          </label>
+                        </section>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
-              {!usesCustomCases ? (
-                <label className="field">
-                  测试 Profile
-                  <select
-                    value={draft.profile}
-                    disabled={submit.isPending}
-                    onChange={(event) => updateDraft({ profile: event.target.value })}
-                  >
-                    {!config.test_profiles.includes(config.editable.test_profile || "") && (
-                      <option value={config.editable.test_profile || ""}>
-                        {config.editable.test_profile || "使用配置默认值"}
-                      </option>
-                    )}
-                    {config.test_profiles.map((profile) => <option key={profile}>{profile}</option>)}
-                  </select>
-                  {profileCaseCount !== undefined && <small>包含 {profileCaseCount} 项用例</small>}
-                </label>
-              ) : (
-                <label className="field">
-                  测试用例
-                  <textarea
-                    id="release-test-cases"
-                    rows={3}
-                    required
-                    aria-invalid={missingCases}
-                    value={draft.caseText}
-                    disabled={submit.isPending}
-                    onChange={(event) => updateDraft({ caseText: event.target.value })}
-                    placeholder="每行一个用例"
-                  />
-                  {missingCases && <small className="release-problem">请至少填写一个用例。</small>}
-                </label>
-              )}
             </section>
           )}
-          <section className="panel release-card" aria-labelledby="release-remark-title">
-            <header>
-              <h3 id="release-remark-title"><StickyNote size={16} aria-hidden="true" />备注</h3>
-              <span>可选</span>
-            </header>
-            <textarea
-              aria-labelledby="release-remark-title"
-              rows={3}
-              value={draft.remark}
-              disabled={submit.isPending}
-              onChange={(event) => updateDraft({ remark: event.target.value })}
-            />
-          </section>
+          <details className="panel release-advanced">
+            <summary>
+              <StickyNote size={16} aria-hidden="true" />
+              <span>进阶</span>
+              <ChevronDown className="release-advanced-chevron" size={15} aria-hidden="true" />
+            </summary>
+            <div className="release-advanced-content">
+              <label className="field">
+                任务备注
+                <textarea
+                  rows={3}
+                  value={draft.remark}
+                  disabled={submit.isPending}
+                  onChange={(event) => updateDraft({ remark: event.target.value })}
+                />
+              </label>
+            </div>
+          </details>
         </div>
+
+        <section className="release-stage-list" aria-labelledby="release-stages-title">
+          <header className="release-section-heading">
+            <span className="release-section-icon"><ListChecks size={16} aria-hidden="true" /></span>
+            <h2 id="release-stages-title">本次将执行</h2>
+            <button
+              id="release-adjust-stages"
+              type="button"
+              className="release-adjust"
+              aria-expanded={editingStages}
+              aria-controls="release-stage-plan"
+              onClick={() => setEditingStages((editing) => !editing)}
+            >
+              {editingStages ? "收起调整" : "调整阶段"} <ChevronDown size={14} aria-hidden="true" />
+            </button>
+          </header>
+          <div className="panel release-stage-plan" id="release-stage-plan">
+            {stageRows.length ? (
+              <ol className="release-stages" role="list">
+                {stageRows.map((stage, index) => {
+                  const enabled = active.includes(stage);
+                  const summary = summaries[stage];
+                  const summaryId = `release-summary-${stage}`;
+                  return (
+                    <li key={stage}>
+                      <StageRow className={`release-stage-row${editingStages ? " is-editing" : ""}`}>
+                        <span className="release-stage-name">
+                          {!editingStages && <span className="release-stage-order" aria-hidden="true">{index + 1}</span>}
+                          {stageLabels[stage]}
+                        </span>
+                        {summary && (
+                          <small id={summaryId} className={stage === "prepare" && missingPath ? "release-problem" : undefined}>
+                            {summary}
+                          </small>
+                        )}
+                        {editingStages && (
+                          <span className="release-stage-toggle">
+                            <span aria-hidden="true">{enabled ? "执行" : "跳过"}</span>
+                            <input
+                              id={index === 0 ? "release-first-stage" : undefined}
+                              type="checkbox"
+                              role="switch"
+                              aria-label={stageLabels[stage]}
+                              aria-describedby={summary ? summaryId : undefined}
+                              checked={enabled}
+                              disabled={submit.isPending}
+                              onChange={(event) => toggleStage(stage, event.target.checked)}
+                            />
+                          </span>
+                        )}
+                      </StageRow>
+                    </li>
+                  );
+                })}
+              </ol>
+            ) : <p className="release-stage-empty">尚未启用任何阶段</p>}
+            <div className="release-stage-notes">
+              {!editingStages && skipped.length > 0 && (
+                <p><strong>已跳过</strong> {skipped.map((stage) => stageLabels[stage]).join("、")}</p>
+              )}
+              {!editingStages && needsRootPath && (
+                <p className={missingPath ? "release-problem" : undefined}>
+                  {missingPath ? "需填写 Root 代码路径" : <>使用已有代码 <code>{rootCodePath}</code></>}
+                </p>
+              )}
+              {!isDemo && !prepare && active.length > 0 && <p>代码来源按流水线配置处理。</p>}
+              {!flash && test && <p className="release-problem">自动测试将使用设备现有镜像。</p>}
+            </div>
+          </div>
+        </section>
 
         <div className="panel release-publish">
           {issue && (
@@ -471,6 +456,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
               className="release-fix"
               onClick={(event) => {
                 const field = event.currentTarget.form?.querySelector<HTMLElement>(`#${issue.target}`);
+                if (issue.target === "release-adjust-stages") setEditingStages(true);
                 field?.focus();
                 field?.scrollIntoView({ block: "nearest" });
               }}

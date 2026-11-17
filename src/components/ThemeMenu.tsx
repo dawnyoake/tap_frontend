@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Check, ChevronDown, Monitor, Moon, Sun } from "lucide-react";
+import { Check, Monitor, Moon, Sun } from "lucide-react";
 
 const themes = [
   { value: "system", label: "跟随系统", icon: Monitor },
@@ -84,14 +84,13 @@ export function ThemeMenu() {
         ref={trigger}
         className="theme-trigger"
         aria-label={`界面外观 · ${current.label}`}
+        title={`界面外观 · ${current.label}`}
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? "theme-menu" : undefined}
         onClick={() => setOpen((previous) => !previous)}
       >
-        <current.icon size={14} aria-hidden="true" />
-        {current.label}
-        <ChevronDown size={12} aria-hidden="true" />
+        <current.icon size={16} aria-hidden="true" />
       </button>
       {open && (
         <div id="theme-menu" className="theme-menu" role="menu" aria-label="界面外观">
