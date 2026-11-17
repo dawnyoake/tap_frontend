@@ -31,13 +31,13 @@ const submitSources = [
   {
     source: "change-id",
     label: "Change-Id",
-    description: "适合已有代码变更的 Change-Id，准备发起构建和测试。",
+    description: "已有代码变更的 Change-Id，可继续配置构建和测试。",
     icon: GitCommitHorizontal,
   },
   {
     source: "root-mr",
     label: "Root MR",
-    description: "适合已有 Root MR，准备以它作为本次任务的代码来源。",
+    description: "已有 Root MR，可在下一步的「代码来源」中填写。",
     icon: GitPullRequest,
   },
 ] as const;
@@ -116,12 +116,12 @@ export function SubmitPage() {
     <section className="release-source-options" aria-label="选择任务起点">
       {submitSources.map(({ source, label, description, icon: Icon }) => (
         <Link key={source} to="/submit" search={{ source }} resetScroll className="panel release-source-option">
-          <span className="release-source-icon"><Icon size={28} aria-hidden="true" /></span>
+          <span className="release-source-icon"><Icon size={24} aria-hidden="true" /></span>
           <div className="release-source-copy">
             <h2>从 {label} 开始</h2>
             <p>{description}</p>
           </div>
-          <ArrowRight className="release-source-arrow" size={20} aria-hidden="true" />
+          <ArrowRight className="release-source-arrow" size={18} aria-hidden="true" />
         </Link>
       ))}
     </section>
