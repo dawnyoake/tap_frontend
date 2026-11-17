@@ -17,7 +17,7 @@
 }
 
 .release-source-options .release-source-option {
-  border-color: var(--line-control);
+  border-color: var(--line-field);
   border-radius: 12px;
 }
 
@@ -299,7 +299,7 @@
   gap: 6px;
   min-height: 50px;
   padding: 8px 10px;
-  border: 1px solid var(--line-control);
+  border: 1px solid var(--line-field);
   border-radius: 7px;
   background: var(--surface-soft);
   color: var(--text-secondary);
