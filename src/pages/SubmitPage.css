@@ -294,6 +294,17 @@
 
 .release-device-picker > p { margin: 8px 0 0; }
 
+.release-device-scan {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.release-device-scan svg { color: var(--blue); }
+
 .release-device-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));

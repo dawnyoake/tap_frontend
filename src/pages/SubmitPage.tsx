@@ -193,13 +193,21 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
   const missingPath = needsRootPath && !rootCodePath;
   const selectedSerial = draft.serial;
   const reportedDevices = devices.data?.devices ?? [];
+  const scanningDevices = devices.isFetching && !devices.data;
+  const hasSelectableDevice = reportedDevices.some((device) => deviceStatus(device) === "idle");
   const selectedDevice = reportedDevices.find((device) => device.sn === selectedSerial);
   const selectedStatus = selectedDevice ? deviceStatus(selectedDevice) : undefined;
-  const deviceIssue = /[,，\s]/.test(selectedSerial) || (!selectedSerial && config.editable.sn.length > 1)
-    ? "请选择一台样机"
-    : selectedStatus && selectedStatus !== "idle"
+  const selectedUnavailable = selectedStatus !== undefined && selectedStatus !== "idle";
+  const needsDeviceChoice = /[,，\s]/.test(selectedSerial)
+    || (!selectedSerial && (hasSelectableDevice || config.editable.sn.length > 1));
+  const deviceIssue = hasSelectableDevice
+    ? selectedUnavailable
       ? `当前样机${deviceStatusLabels[selectedStatus]}，请选择其他样机`
+      : needsDeviceChoice ? "请选择一台样机" : undefined
       : undefined;
+  const deviceBlocked = usesDevice && (
+    scanningDevices || needsDeviceChoice || selectedUnavailable
+  );
   const deviceSummary = [selectedDevice?.product_model?.trim(), selectedSerial].filter(Boolean).join(" · ");
   const testCases = [...new Set([
     ...config.editable.functions,
@@ -248,7 +256,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
 
   function publish(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (issue || submit.isPending) return;
+    if (issue || deviceBlocked || submit.isPending) return;
     submit.mutate({
       payload: {
         config: picker.name,
@@ -315,7 +323,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
               </header>
               <div className="release-device-test">
                 <fieldset id="release-device-picker" className="release-device-picker" tabIndex={-1}>
-                  <legend>选择样机</legend>
+                  <legend>{hasSelectableDevice ? "选择样机" : "样机资源"}</legend>
                   {reportedDevices.length > 0 ? (
                     <div className="release-device-options">
                       {reportedDevices.map((device) => {
@@ -338,8 +346,18 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
                         );
                       })}
                     </div>
-                  ) : <p className="release-muted">{devices.isLoading ? "正在加载样机…" : "暂无上报的样机"}</p>}
-                  {selectedSerial && !selectedDevice && (
+                  ) : scanningDevices ? (
+                    <p className="release-device-scan" role="status">
+                      <LoaderCircle className="spin" size={16} aria-hidden="true" />
+                      正在扫描样机资源…
+                    </p>
+                  ) : !devices.error && !devices.data?.error && (
+                    <p className="release-muted">暂无上报的样机</p>
+                  )}
+                  {reportedDevices.length > 0 && !hasSelectableDevice && (
+                    <p className="release-muted" role="status">暂无空闲样机</p>
+                  )}
+                  {!scanningDevices && selectedSerial && !selectedDevice && (
                     <p className="release-muted">配置默认样机 {selectedSerial} · 状态未上报</p>
                   )}
                   {deviceIssue && <p className="release-problem" role="status">{deviceIssue}</p>}
@@ -480,7 +498,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
               {issue.label} <Crosshair size={14} aria-hidden="true" />
             </button>
           )}
-          <button className="button primary cta" type="submit" disabled={Boolean(issue) || submit.isPending}>
+          <button className="button primary cta" type="submit" disabled={Boolean(issue) || deviceBlocked || submit.isPending}>
             {submit.isPending ? "正在发布…" : isDemo ? "发布演示任务" : "发布任务"}
             {submit.isPending
               ? <LoaderCircle size={16} className="spin" aria-hidden="true" />
