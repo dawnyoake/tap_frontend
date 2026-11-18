@@ -12,7 +12,6 @@ import {
   GitPullRequest,
   LoaderCircle,
   ListChecks,
-  Plus,
   Send,
   SlidersHorizontal,
   StickyNote,
@@ -21,7 +20,7 @@ import {
 import { Empty, ErrorBox, Loading } from "../components/Feedback";
 import { useDevices } from "../hooks/queries";
 import { api, isDemo, stages, stageLabels } from "../lib/api";
-import type { Config, ConfigDetail, SubmitTaskInput } from "../lib/contracts";
+import type { Config, ConfigDetail, Device, SubmitTaskInput } from "../lib/contracts";
 import { demoApi } from "../lib/demoApi";
 import "./SubmitPage.css";
 
@@ -42,16 +41,27 @@ const submitSources = [
   },
 ] as const;
 
-function splitValues(value: string, delimiter: RegExp) {
-  return value.split(delimiter).map((item) => item.trim()).filter(Boolean);
+const deviceStatusLabels = {
+  idle: "空闲",
+  busy: "占用中",
+  offline: "离线",
+  uncertain: "状态不明",
+};
+
+function deviceStatus(device: Device) {
+  if (device.state === "offline") return "offline";
+  if (device.busy) return "busy";
+  return device.uncertain ? "uncertain" : "idle";
 }
 
 function initialDraft(config: ConfigDetail) {
   return {
     rootMR: config.editable.root_mr || "",
     rootCodePath: "",
-    serials: config.editable.sn.join(", "),
-    profile: config.editable.test_profile || "",
+    serial: config.editable.sn.length === 1 ? config.editable.sn[0] : "",
+    functions: [...new Set(config.editable.functions.length
+      ? config.editable.functions
+      : config.profile_details[config.editable.test_profile]?.functions ?? [])],
     remark: config.editable.remark || "",
     skip: stages.filter((stage) => !config.stages.includes(stage)),
   };
@@ -181,20 +191,30 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
   const needsRootPath = isDemo && !prepare && active.length > 0;
   const rootCodePath = draft.rootCodePath.trim();
   const missingPath = needsRootPath && !rootCodePath;
-  const serials = [...new Set(splitValues(draft.serials, /[,，\n]/))];
-  const availableDevices = devices.data?.devices.filter((device) =>
-    !device.busy && device.state !== "offline" && !device.uncertain,
-  ) ?? [];
-  const deviceSummary = (serials.length ? serials : config.editable.sn).join("、");
-  const defaultProfile = config.editable.test_profile || "";
-  const showTestRange = test && Boolean(deviceSummary);
-  const profileCases = config.profile_details[draft.profile]?.functions
-    ?? (draft.profile === defaultProfile ? config.editable.functions : undefined);
+  const selectedSerial = draft.serial;
+  const reportedDevices = devices.data?.devices ?? [];
+  const selectedDevice = reportedDevices.find((device) => device.sn === selectedSerial);
+  const selectedStatus = selectedDevice ? deviceStatus(selectedDevice) : undefined;
+  const deviceIssue = /[,，\s]/.test(selectedSerial) || (!selectedSerial && config.editable.sn.length > 1)
+    ? "请选择一台样机"
+    : selectedStatus && selectedStatus !== "idle"
+      ? `当前样机${deviceStatusLabels[selectedStatus]}，请选择其他样机`
+      : undefined;
+  const deviceSummary = [selectedDevice?.product_model?.trim(), selectedSerial].filter(Boolean).join(" · ");
+  const testCases = [...new Set([
+    ...config.editable.functions,
+    ...Object.values(config.profile_details).flatMap((profile) => profile.functions),
+  ])];
+  const missingCases = test && draft.functions.length === 0;
   const issue = !active.length
     ? { target: editingStages ? "release-first-stage" : "release-adjust-stages", label: "启用至少一个执行阶段" }
     : missingPath
       ? { target: "release-root-path", label: "填写 Root 代码路径" }
-      : undefined;
+      : usesDevice && deviceIssue
+        ? { target: "release-device-picker", label: deviceIssue }
+        : missingCases
+          ? { target: "release-test-range", label: testCases.length ? "至少选择一项测试用例" : "当前配置没有可选测试用例" }
+          : undefined;
   const branch = typeof config.readonly.branch === "string" ? config.readonly.branch : "";
   const product = typeof config.readonly.product === "string" ? config.readonly.product : "";
   const summaries: Partial<Record<StageName, string>> = {
@@ -209,7 +229,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
     flash: flash ? deviceSummary || "未指定设备" : undefined,
     test: test
       ? [
-          showTestRange && (draft.profile || "配置默认用例"),
+          `${draft.functions.length} 项用例`,
           !flash && (deviceSummary || "未指定设备"),
         ].filter(Boolean).join(" · ")
       : undefined,
@@ -235,9 +255,9 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
         overrides: {
           root_mr: prepare ? draft.rootMR.trim() : "",
           mr_links: [],
-          sn: usesDevice ? serials : [],
-          test_profile: test ? (showTestRange ? draft.profile : defaultProfile) : "",
-          functions: [],
+          sn: usesDevice && selectedSerial ? [selectedSerial] : [],
+          test_profile: "",
+          functions: test ? draft.functions : [],
           remark: draft.remark,
         },
         stages: { from_stage: "prepare", only_stage: "", skip: draft.skip },
@@ -293,68 +313,64 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
               <header>
                 <h3 id="release-device-title"><Cpu size={16} aria-hidden="true" />{test ? "设备与测试" : "目标设备"}</h3>
               </header>
-              <div className="release-device-test" data-testing={test}>
-                <div className="release-device-fields">
-                  <label className="field">
-                    样机 SN
-                    <input
-                      value={draft.serials}
-                      disabled={submit.isPending}
-                      onChange={(event) => updateDraft({ serials: event.target.value })}
-                      placeholder="多个设备以逗号分隔"
-                    />
-                    {config.editable.sn.length > 0 && <small>留空时使用配置默认设备。</small>}
-                  </label>
-                  {availableDevices.length > 0 && (
-                    <div className="device-choices">
-                      <span>在线可用</span>
-                      {availableDevices.map(({ sn }) => (
-                        <button
-                          key={sn}
-                          type="button"
-                          aria-pressed={serials.includes(sn)}
-                          className={serials.includes(sn) ? "selected" : ""}
-                          disabled={submit.isPending}
-                          onClick={() => updateDraft({
-                            serials: (serials.includes(sn) ? serials.filter((value) => value !== sn) : [...serials, sn]).join(", "),
-                          })}
-                        >
-                          <Plus size={12} aria-hidden="true" />{sn}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  <ErrorBox error={devices.error || devices.data?.error} />
-                </div>
-                {test && (
-                  <div className="release-test-reveal" data-ready={showTestRange}>
-                    <div className="release-test-hint" aria-hidden={showTestRange}>
-                      <p className="release-muted">指定设备后可选择测试 Profile。</p>
-                    </div>
-                    <div className="release-test-fields" inert={!showTestRange}>
-                      <div className="release-test-clip">
-                        <section className="release-test-config" aria-labelledby="release-test-config-title">
-                          <h4 id="release-test-config-title">已选设备的测试配置</h4>
-                          <label className="field">
-                            <span className="release-test-label">
-                              测试 Profile
-                              {profileCases && <span className="release-muted">{profileCases.length} 项用例</span>}
-                            </span>
-                            <select
-                              value={draft.profile}
-                              disabled={submit.isPending}
-                              onChange={(event) => updateDraft({ profile: event.target.value })}
-                            >
-                              {!config.test_profiles.includes(defaultProfile) && (
-                                <option value={defaultProfile}>{defaultProfile || "使用配置默认值"}</option>
-                              )}
-                              {config.test_profiles.map((profile) => <option key={profile}>{profile}</option>)}
-                            </select>
+              <div className="release-device-test">
+                <fieldset id="release-device-picker" className="release-device-picker" tabIndex={-1}>
+                  <legend>选择样机</legend>
+                  {reportedDevices.length > 0 ? (
+                    <div className="release-device-options">
+                      {reportedDevices.map((device) => {
+                        const { sn, product_model } = device;
+                        const status = deviceStatus(device);
+                        return (
+                          <label className="release-device-option" key={sn}>
+                            <span className="release-device-model">{product_model?.trim() || "型号未上报"}</span>
+                            <span className={`release-device-state ${status}`}>{deviceStatusLabels[status]}</span>
+                            <span className="release-device-serial">{sn}</span>
+                            <input
+                              type="radio"
+                              name="release-device"
+                              value={sn}
+                              checked={selectedSerial === sn}
+                              disabled={status !== "idle" || submit.isPending}
+                              onChange={() => updateDraft({ serial: sn })}
+                            />
                           </label>
-                        </section>
-                      </div>
+                        );
+                      })}
                     </div>
-                  </div>
+                  ) : <p className="release-muted">{devices.isLoading ? "正在加载样机…" : "暂无上报的样机"}</p>}
+                  {selectedSerial && !selectedDevice && (
+                    <p className="release-muted">配置默认样机 {selectedSerial} · 状态未上报</p>
+                  )}
+                  {deviceIssue && <p className="release-problem" role="status">{deviceIssue}</p>}
+                  <ErrorBox error={devices.error || devices.data?.error} />
+                </fieldset>
+                {test && (
+                  <fieldset id="release-test-range" className="release-test-config" tabIndex={-1}>
+                    <legend>测试范围</legend>
+                    {testCases.length > 0 ? (
+                      <div className="release-test-cases">
+                        {testCases.map((testCase) => (
+                          <label key={testCase} className="checkbox">
+                            <input
+                              type="checkbox"
+                              checked={draft.functions.includes(testCase)}
+                              disabled={submit.isPending}
+                              onChange={(event) => {
+                                const checked = event.target.checked;
+                                updateDraft({
+                                  functions: testCases.filter((item) =>
+                                    item === testCase ? checked : draft.functions.includes(item),
+                                  ),
+                                });
+                              }}
+                            />
+                            <span>{testCase}</span>
+                          </label>
+                        ))}
+                      </div>
+                    ) : <p className="release-muted">当前配置没有可选测试用例。</p>}
+                  </fieldset>
                 )}
               </div>
             </section>
