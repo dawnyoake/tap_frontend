@@ -190,8 +190,8 @@ export const demoApi: Omit<PipelineApi, "submit"> & {
   }),
   configs: async () => ({
     configs: [
-      { name: "cfg-****.json", label: "cfg-****" },
-      { name: "cfg-****-smoke.json", label: "cfg-****-smoke" },
+      { name: "cfg-****.json", device_match: ["TEE-CHD-01"], label: "cfg-****" },
+      { name: "cfg-****-smoke.json", device_match: ["TEE-CHD-02"], label: "cfg-****-smoke" },
     ],
   }),
   testRoots: async (_name, profile) => ({ roots: config.profile_details[profile]?.functions ?? config.editable.functions }),

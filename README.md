@@ -36,3 +36,27 @@ npm run dev
 中文采用 HarmonyOS Sans SC，西文、数字和日志采用 JetBrains Mono，均本地托管。中文字体用于接近终末地的黑体阅读气质，未声称与官方游戏字体完全一致。保留原始字体文件与许可，字体来源和设计尺寸见 `DESIGN.md`。
 
 此仓库根目录对应原工作空间的 `frontend/` 目录。
+
+## 发布页递进流程与后端契约
+
+发布页按“来源确认 → 资源池样机 → 兼容配置与测试范围 → 发布”展开。
+Change-Id 从 trigger 开始且不能跳过 trigger；Root MR 从 prepare 开始。
+跳过 flash 并执行 test 时提交 overrides.test.skip_flash=true。最终阶段合法性仍由后端校验。
+
+配置列表需要返回 device_match（字符串数组）或 device_model（字符串）。
+匹配忽略大小写，支持双向包含；设备型号为空时不过滤。配置没有匹配元数据时，
+对已知型号不会被当作兼容配置。无匹配会展示空状态。示例：
+
+```json
+{"configs":[
+  {"name":"MLN_Hisi_Adb_All.json","label":"MLN_Hisi_Adb_All","device_model":"MLN","device_match":["MLN"]},
+  {"name":"PC.json","label":"PC","device_match":["Charlotte Pro","CPROHarden","HARDEN"]}
+]}
+```
+
+测试范围调用 GET /api/test-roots?config=<name>&profile=<profile>，
+当前前端约定返回 {"roots":["UCrypto/Crypto"]}；切换模板清空选择。
+设备协议状态展示使用 raw_state，缺失时使用 state。
+
+本仓仅含前端，没有 web/ 后端与 config/ 配置文件。上述元数据和 roots 响应结构
+需要由部署侧后端提供并联调；不会根据配置文件名猜测设备兼容性。
