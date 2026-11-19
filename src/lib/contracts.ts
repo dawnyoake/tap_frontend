@@ -90,8 +90,6 @@ export interface Device {
   battery_percent?: number | null;
 }
 export interface Config {
-  device_model?: string;
-  device_match?: string[];
   name: string;
   label: string;
 }

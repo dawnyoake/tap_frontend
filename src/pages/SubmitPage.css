@@ -557,31 +557,3 @@
     70% { transform: scale(.9925, 1.0075); }
   }
 }
-
-.release-flow { max-width: 1150px; display: grid; gap: 20px; }
-.release-flow-intro h2 { margin: 8px 0; font-size: clamp(22px, 3vw, 28px); }
-.release-flow-intro p { color: var(--muted); font-size: 13px; }
-.release-flow > .release-card { padding: 24px; gap: 18px; }
-.release-step { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-right: 5px; border-radius: 8px; color: var(--accent-ink); background: var(--surface-selected); font-size: 12px; }
-.release-source-tabs { display: flex; gap: 8px; }
-.release-source-tabs button { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border: 1px solid var(--line-control); border-radius: 8px; color: var(--text-secondary); }
-.release-source-tabs button.is-selected { border-color: var(--blue); background: var(--surface-selected); color: var(--accent-ink); }
-.release-next { justify-self: start; }
-.release-flow .release-layout { grid-template-areas: "config stages" "config publish"; grid-template-rows: auto 1fr; }
-.release-flow .release-base { grid-area: auto; }
-.release-flow .release-base > .release-section-heading { display: none; }
-.release-flow .release-base > .release-card { border: 0; box-shadow: none; padding: 0; background: transparent; }
-.release-flow .release-test-config { border-top: 1px solid var(--line); padding-top: 18px; }
-.release-flow .release-configs > .release-card { padding: 22px; gap: 18px; }
-.release-flow .release-device-option { padding: 16px; border-radius: 9px; }
-@media (prefers-reduced-motion: no-preference) {
-  .release-flow-reveal { animation: release-source-enter 240ms ease-out both; }
-  .release-source-tabs button, .release-device-option { transition: border-color 180ms, background-color 180ms; }
-}
-@container (max-width: 650px) {
-  .release-flow .release-layout { grid-template-areas: "config" "stages" "publish"; grid-template-rows: auto; }
-}
-@media (max-width: 520px) {
-  .release-flow > .release-card { padding: 16px; }
-  .release-source-tabs button { flex: 1; justify-content: center; padding-inline: 8px; }
-}
