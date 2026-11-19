@@ -77,16 +77,12 @@ interface ConfigPickerProps {
 }
 
 function PipelineConfig({ name, options, onChange, disabled }: ConfigPickerProps) {
-  const [search, setSearch] = useState("");
-  const filtered = options.filter(config => (config.label + config.name).toLowerCase().includes(search.toLowerCase()));
   return <>
     <header><h3><Workflow size={16} aria-hidden="true"/><label htmlFor="release-pipeline">流水线配置</label></h3></header>
-    <input aria-label="搜索流水线配置" placeholder="搜索配置名称" value={search} onChange={e => setSearch(e.target.value)} disabled={disabled}/>
     <select id="release-pipeline" value={name} onChange={e => onChange(e.target.value)} disabled={disabled}>
       <option value="">请选择流水线配置</option>
-      {options.filter(c => filtered.includes(c) || c.name === name).map(c => <option key={c.name} value={c.name}>{c.label || c.name.replace(/\.json$/i, "")}</option>)}
+      {options.map(c => <option key={c.name} value={c.name}>{c.label || c.name.replace(/\.json$/i, "")}</option>)}
     </select>
-    {!filtered.length && <p className="release-muted">没有符合搜索条件的配置</p>}
   </>;
 }
 
