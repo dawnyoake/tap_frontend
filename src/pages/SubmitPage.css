@@ -548,14 +548,40 @@
   .release-layout-loading { grid-template-areas: "base"; }
 }
 
+/* Crossfade the accent layer in both directions; keep the button geometry still.
+   A separate layer allows the existing gradient to fade without a background snap. */
+.release-publish .button.cta,
+.release-publish .button.cta:disabled {
+  background: var(--surface-soft);
+}
+.release-publish .button.cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background: linear-gradient(112deg, var(--cta-start), var(--cta-end));
+  opacity: 1;
+}
+.release-publish .button.cta:disabled::after { opacity: 0; }
+.release-publish .button.cta .cta-arrow { opacity: 1; }
+.release-publish .button.cta:disabled .cta-arrow { opacity: .45; }
+.release-publish .button.cta:not(:disabled):hover .cta-arrow {
+  transform: none;
+}
+
 @media (prefers-reduced-motion: no-preference) {
-  .release-publish .cta:not(:disabled) { animation: release-ready 420ms ease-out; }
-  .release-fix { animation: release-source-enter 180ms ease-out; }
-  @keyframes release-ready {
-    0%, 100% { transform: scale(1); }
-    40% { transform: scale(1.0225, .9775); }
-    70% { transform: scale(.9925, 1.0075); }
+  .release-publish .button.cta {
+    transition: color 200ms ease-out, border-color 240ms ease-out,
+      box-shadow 240ms ease-out;
   }
+  .release-publish .button.cta::after {
+    transition: opacity 240ms cubic-bezier(.2, .7, .3, 1);
+  }
+  .release-publish .button.cta .cta-arrow {
+    transition: opacity 200ms ease-out;
+  }
+  .release-fix { animation: release-source-enter 180ms ease-out; }
 }
 
 .release-pipeline-card > select,
