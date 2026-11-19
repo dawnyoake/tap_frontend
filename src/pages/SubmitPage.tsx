@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import {
@@ -60,7 +60,7 @@ function initialDraft(config: ConfigDetail) {
     profile: config.editable.test_profile,
     rootMR: config.editable.root_mr || "",
     rootCodePath: "",
-    serial: config.editable.sn.length === 1 ? config.editable.sn[0] : "",
+    serial: "",
     functions: [...new Set(config.editable.functions.length
       ? config.editable.functions
       : config.profile_details[config.editable.test_profile]?.functions ?? [])],
@@ -76,35 +76,24 @@ interface ConfigPickerProps {
   disabled?: boolean;
 }
 
-function PipelineConfig({
-  name,
-  options,
-  onChange,
-  disabled,
-}: ConfigPickerProps) {
-  return (
-    <section className="release-base" aria-labelledby="release-configs-title">
-      <header className="release-section-heading">
-        <span className="release-section-icon"><SlidersHorizontal size={16} aria-hidden="true" /></span>
-        <h2 id="release-configs-title">任务配置</h2>
-      </header>
-      <div className="panel release-card">
-        <header>
-          <h3><Workflow size={16} aria-hidden="true" /><label htmlFor="release-pipeline">流水线配置</label></h3>
-        </header>
-        <select id="release-pipeline" value={name} onChange={(event) => onChange(event.target.value)} disabled={disabled}>
-          {options.map((config) => (
-            <option key={config.name} value={config.name}>
-              {!config.label || config.label === config.name || config.label === config.name.replace(/\.json$/i, "")
-                ? config.name.replace(/\.json$/i, "")
-                : `${config.label} · ${config.name}`}
-            </option>
-          ))}
-        </select>
-      </div>
-    </section>
-  );
+function PipelineConfig({ name, options, onChange, disabled }: ConfigPickerProps) {
+  const [search, setSearch] = useState("");
+  const filtered = options.filter(config => (config.label + config.name).toLowerCase().includes(search.toLowerCase()));
+  return <>
+    <header><h3><Workflow size={16} aria-hidden="true"/><label htmlFor="release-pipeline">流水线配置</label></h3></header>
+    <input aria-label="搜索流水线配置" placeholder="搜索配置名称" value={search} onChange={e => setSearch(e.target.value)} disabled={disabled}/>
+    <select id="release-pipeline" value={name} onChange={e => onChange(e.target.value)} disabled={disabled}>
+      <option value="">请选择流水线配置</option>
+      {options.filter(c => filtered.includes(c) || c.name === name).map(c => <option key={c.name} value={c.name}>{c.label || c.name.replace(/\.json$/i, "")}</option>)}
+    </select>
+    {!filtered.length && <p className="release-muted">没有符合搜索条件的配置</p>}
+  </>;
 }
+
+const emptyConfig: ConfigDetail = {
+  editable: { root_mr: "", sn: [], test_profile: "", functions: [], remark: "" },
+  stages: [...stages], readonly: {}, test_profiles: [], profile_details: {},
+};
 
 export function SubmitPage() {
   const { source } = submitRoute.useSearch();
@@ -144,36 +133,29 @@ function SubmitConfiguration() {
   const [name, setName] = useState("");
   const configs = useQuery({ queryKey: ["configs"], queryFn: api.configs });
   const options = configs.data?.configs ?? [];
-  const selected = options.find((config) => config.name === name)?.name ?? options[0]?.name ?? "";
+  const selected = options.find((config) => config.name === name)?.name ?? "";
   const config = useQuery({
-    queryKey: ["config", selected],
-    queryFn: () => api.config(selected),
-    enabled: Boolean(selected),
+    queryKey: ["config", selected], queryFn: () => api.config(selected), enabled: Boolean(selected),
   });
-
-  const picker = { name: selected, options, onChange: setName };
-  if (config.data) {
-    return <TaskForm key={selected} picker={picker} config={config.data} />;
-  }
-  return (
-    <div className="submit-workspace">
-      {selected && (
-        <div className="release-layout release-layout-loading"><PipelineConfig {...picker} /></div>
-      )}
-      <ErrorBox error={configs.error || config.error} />
-      {(configs.isPending || (selected && config.isPending)) && <Loading />}
-      {configs.isSuccess && !selected && <Empty text="暂无可用的流水线配置" />}
-    </div>
-  );
+  // TODO backend: return device-compatible configs for the selected SN.
+  // Until that endpoint is available, retain the server's list; do not infer compatibility from names.
+  return <TaskForm picker={{ name: selected, options, onChange: setName }} config={config.data ?? emptyConfig}
+    ready={!!selected && !!config.data} configError={configs.error || config.error}
+    configLoading={configs.isPending || (!!selected && config.isPending)} />;
 }
 
-function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: ConfigDetail }) {
+function TaskForm({ picker, config, ready, configError, configLoading }: { picker: ConfigPickerProps; config: ConfigDetail; ready: boolean; configError: Error | null; configLoading: boolean }) {
   const [draft, setDraft] = useState(() => initialDraft(config));
+  const [defaultSource, setDefaultSource] = useState(false);
+  const [sourceTouched, setSourceTouched] = useState(false);
+  useEffect(() => {
+    setDraft(previous => ({ ...previous, profile: config.editable.test_profile, functions: [], skip: initialDraft(config).skip }));
+  }, [config]);
   const { source } = submitRoute.useSearch();
   const changeMode = source === "change-id";
   const changeId = draft.changeId.match(/I[0-9a-fA-F]{40}(?![0-9a-fA-F])/)?.[0] ?? "";
   const visibleStages = changeMode ? stages.slice(4) : stages;
-  const roots = useQuery({ queryKey: ["test-roots", picker.name, draft.profile], queryFn: () => api.testRoots(picker.name, draft.profile) });
+  const roots = useQuery({ queryKey: ["test-roots", picker.name, draft.profile], queryFn: () => api.testRoots(picker.name, draft.profile), enabled: ready });
   const [editingStages, setEditingStages] = useState(false);
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -188,14 +170,14 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
   });
 
   const active = visibleStages.filter((stage) => (changeMode && stage === "trigger") || !draft.skip.includes(stage));
-  const skipped = visibleStages.filter((stage) => draft.skip.includes(stage));
+  const skipped = visibleStages.filter((stage) => !active.includes(stage));
   const stageRows = editingStages ? visibleStages : active;
   const StageRow = editingStages ? "label" : "div";
   const prepare = active.includes("prepare");
   const flash = active.includes("flash");
   const test = active.includes("test");
   const usesDevice = flash || test;
-  const needsRootPath = isDemo && !prepare && active.length > 0;
+  const needsRootPath = ready && isDemo && !changeMode && !prepare && active.length > 0;
   const rootCodePath = draft.rootCodePath.trim();
   const missingPath = needsRootPath && !rootCodePath;
   const selectedSerial = draft.serial;
@@ -204,22 +186,18 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
   const hasSelectableDevice = reportedDevices.some((device) => deviceStatus(device) === "idle");
   const selectedDevice = reportedDevices.find((device) => device.sn === selectedSerial);
   const selectedStatus = selectedDevice ? deviceStatus(selectedDevice) : undefined;
-  const selectedUnavailable = selectedStatus !== undefined && selectedStatus !== "idle";
-  const needsDeviceChoice = /[,，\s]/.test(selectedSerial)
-    || (!selectedSerial && (hasSelectableDevice || config.editable.sn.length > 1));
-  const deviceIssue = hasSelectableDevice
-    ? selectedUnavailable
-      ? `当前样机${deviceStatusLabels[selectedStatus]}，请选择其他样机`
-      : needsDeviceChoice ? "请选择一台样机" : undefined
-      : undefined;
-  const deviceBlocked = usesDevice && (
-    scanningDevices || needsDeviceChoice || selectedUnavailable
-  );
+  const selectedUnavailable = !selectedDevice || selectedStatus !== "idle";
+  const deviceIssue = !selectedSerial ? "请选择一台样机" : selectedUnavailable ? "当前样机不可用，请重新选择" : undefined;
+  const deviceBlocked = scanningDevices || selectedUnavailable;
   const deviceSummary = [selectedDevice?.product_model?.trim(), selectedSerial].filter(Boolean).join(" · ");
   const testCases = roots.data?.roots ?? [];
-  const missingCases = test && draft.functions.length === 0;
+  const missingCases = test && !draft.functions.some(item => testCases.includes(item));
   const issue = changeMode && !changeId
     ? { target: "release-change-id", label: "填写合法的 Change-Id 或 Hibuild 链接" }
+    : !changeMode && !defaultSource && !draft.rootMR.trim()
+      ? { target: "release-root-mr", label: "填写 Root MR 或选择配置默认来源" }
+    : deviceIssue ? { target: "release-device-picker", label: deviceIssue }
+    : !ready ? { target: "release-pipeline", label: "请选择流水线配置" }
     : test && (roots.isPending || roots.isError) ? { target: "release-test-range", label: "测试范围尚未加载成功" }
     : !active.length
     ? { target: editingStages ? "release-first-stage" : "release-adjust-stages", label: "启用至少一个执行阶段" }
@@ -234,7 +212,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
   const product = typeof config.readonly.product === "string" ? config.readonly.product : "";
   const summaries: Partial<Record<StageName, string>> = {
     prepare: prepare
-      ? draft.rootMR.trim() || branch || "配置默认代码来源"
+      ? (defaultSource ? config.editable.root_mr : draft.rootMR.trim()) || branch || "配置默认代码来源"
       : needsRootPath
         ? rootCodePath || "需填写 Root 代码路径"
         : undefined,
@@ -270,11 +248,11 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
         overrides: {
           change_id: changeId,
           test: { skip_flash: !flash && test },
-          root_mr: prepare ? draft.rootMR.trim() : "",
+          root_mr: prepare ? (defaultSource ? config.editable.root_mr : draft.rootMR.trim()) : "",
           mr_links: [],
           sn: usesDevice && selectedSerial ? [selectedSerial] : [],
           test_profile: draft.profile,
-          functions: test ? draft.functions : [],
+          functions: test ? draft.functions.filter(item => testCases.includes(item)) : [],
           remark: draft.remark,
         },
         stages: { from_stage: changeMode ? "trigger" : "prepare", only_stage: "", skip: skipped.filter((stage) => !(changeMode && stage === "trigger")) },
@@ -286,50 +264,26 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
   return (
     <form className="submit-workspace" onSubmit={publish}>
       <div className="release-layout">
-        <PipelineConfig {...picker} disabled={submit.isPending} />
+        <header className="release-section-heading release-base">
+          <span className="release-section-icon"><SlidersHorizontal size={16} aria-hidden="true"/></span>
+          <h2>任务配置</h2>
+        </header>
         <div className="release-configs">
-          {needsRootPath && (
-            <section className={`panel release-card release-path${missingPath ? " needs-value" : ""}`} aria-labelledby="release-path-title">
-              <header>
-                <h3 id="release-path-title"><FolderCode size={16} aria-hidden="true" />Root 代码路径</h3>
-              </header>
-              <p id="release-path-help">已跳过环境准备。填写已有代码的根目录，例如 <code>D:\work\tee-root</code>。</p>
-              <input
-                id="release-root-path"
-                aria-labelledby="release-path-title"
-                aria-describedby={missingPath ? "release-path-help release-path-error" : "release-path-help"}
-                aria-invalid={missingPath}
-                required
-                spellCheck={false}
-                value={draft.rootCodePath}
-                disabled={submit.isPending}
-                onChange={(event) => updateDraft({ rootCodePath: event.target.value })}
-              />
-              {missingPath && <p id="release-path-error" className="release-problem">请填写 Root 代码路径。</p>}
-            </section>
-          )}
-          {changeMode && <section className="panel release-card"><h3>代码来源 · Change-Id</h3><input id="release-change-id" value={draft.changeId} onChange={(e) => updateDraft({ changeId: e.target.value })} placeholder="Hibuild 链接或 Change-Id" /></section>}
-          {prepare && (
-            <section className="panel release-card" aria-labelledby="release-source-title">
-              <header>
-                <h3 id="release-source-title"><GitPullRequest size={16} aria-hidden="true" />代码来源</h3>
-              </header>
-              <label className="field">
-                Root MR <span className="release-muted">（可选）</span>
-                <input
-                  value={draft.rootMR}
-                  disabled={submit.isPending}
-                  onChange={(event) => updateDraft({ rootMR: event.target.value })}
-                  placeholder="输入 MR 编号或链接"
-                />
-                <small>留空时使用流水线配置的默认代码来源。</small>
-              </label>
-            </section>
-          )}
-          {usesDevice && (
+          <section className="panel release-card">
+            <header><h3>{changeMode ? <GitCommitHorizontal size={16}/> : <GitPullRequest size={16}/>}代码来源</h3></header>
+            {changeMode ? <label className="field">Change-Id / Hibuild 链接
+              <input id="release-change-id" value={draft.changeId} disabled={submit.isPending} onBlur={() => setSourceTouched(true)} onChange={e => updateDraft({changeId: e.target.value})} placeholder="粘贴 Hibuild 链接或 Change-Id"/>
+              {changeId ? <small>已识别 Change-Id</small> : sourceTouched && draft.changeId && <small className="release-problem">未识别到合法 Change-Id</small>}
+            </label> : <>
+              {!defaultSource && <label className="field">Root MR / 单仓 MR<input id="release-root-mr" value={draft.rootMR} disabled={submit.isPending} onChange={e => updateDraft({rootMR: e.target.value})} placeholder="输入 MR 编号或链接"/></label>}
+              <label className="checkbox"><input type="checkbox" checked={defaultSource} disabled={submit.isPending} onChange={e => setDefaultSource(e.target.checked)}/>使用流水线配置默认来源</label>
+              {defaultSource && <p className="release-muted">{ready ? config.editable.root_mr || branch || "使用配置默认来源" : "选择流水线配置后显示来源摘要"}</p>}
+            </>}
+          </section>
+          {(
             <section className="panel release-card" aria-labelledby="release-device-title">
               <header>
-                <h3 id="release-device-title"><Cpu size={16} aria-hidden="true" />{test ? "设备与测试" : "目标设备"}</h3>
+                <h3 id="release-device-title"><Cpu size={16} aria-hidden="true" />目标样机</h3>
               </header>
               <div className="release-device-test">
                 <fieldset id="release-device-picker" className="release-device-picker" tabIndex={-1}>
@@ -370,9 +324,21 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
                   {!scanningDevices && selectedSerial && !selectedDevice && (
                     <p className="release-muted">配置默认样机 {selectedSerial} · 状态未上报</p>
                   )}
-                  {deviceIssue && <p className="release-problem" role="status">{deviceIssue}</p>}
+                  {selectedSerial && deviceIssue && <p className="release-problem" role="status">{deviceIssue}</p>}
                   <ErrorBox error={devices.error || devices.data?.error} />
                 </fieldset>
+              </div>
+            </section>
+          )}
+          <section className="panel release-card release-pipeline-card">
+            {!selectedDevice ? <><h3><Workflow size={16}/>流水线配置</h3><p>选择样机后，显示适用的流水线配置。</p></> : <>
+              <PipelineConfig {...picker} disabled={submit.isPending}/>
+              <ErrorBox error={configError}/>
+              {configLoading && <Loading/>}
+              {!configLoading && !picker.options.length && <Empty text="暂无适用的流水线配置"/>}
+              {ready && <div className="release-test-reveal">
+                <p className="release-muted">{["branch", "task", "product", "platform"].map(k => config.readonly[k]).filter(v => typeof v === "string").join(" · ")}</p>
+                {test && <label className="field">测试模板<select value={draft.profile} disabled={submit.isPending} onChange={e => updateDraft({profile: e.target.value, functions: []})}><option value="">配置默认模板</option>{config.test_profiles.filter(Boolean).map(p => <option key={p}>{p}</option>)}</select><small>切换配置或模板后，请重新选择测试范围。</small></label>}
                 {test && (
                   <fieldset id="release-test-range" className="release-test-config" tabIndex={-1}>
                     <legend>测试范围</legend>
@@ -397,10 +363,33 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
                           </label>
                         ))}
                       </div>
-                    ) : <p className="release-muted">当前配置没有可选测试用例。</p>}
+                    ) : roots.isSuccess ? <p className="release-muted">当前配置没有可选测试用例。</p> : null}
                   </fieldset>
                 )}
-              </div>
+                {!test && <p className="release-muted">已跳过自动测试</p>}
+                {test && roots.isPending && <Loading/>}
+                <ErrorBox error={test ? roots.error : null}/>
+              </div>}
+            </>}
+          </section>
+          {needsRootPath && (
+            <section className={`panel release-card release-path${missingPath ? " needs-value" : ""}`} aria-labelledby="release-path-title">
+              <header>
+                <h3 id="release-path-title"><FolderCode size={16} aria-hidden="true" />Root 代码路径</h3>
+              </header>
+              <p id="release-path-help">已跳过环境准备。填写已有代码的根目录，例如 <code>D:\work\tee-root</code>。</p>
+              <input
+                id="release-root-path"
+                aria-labelledby="release-path-title"
+                aria-describedby={missingPath ? "release-path-help release-path-error" : "release-path-help"}
+                aria-invalid={missingPath}
+                required
+                spellCheck={false}
+                value={draft.rootCodePath}
+                disabled={submit.isPending}
+                onChange={(event) => updateDraft({ rootCodePath: event.target.value })}
+              />
+              {missingPath && <p id="release-path-error" className="release-problem">请填写 Root 代码路径。</p>}
             </section>
           )}
           <details className="panel release-advanced">
@@ -410,7 +399,6 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
               <ChevronDown className="release-advanced-chevron" size={15} aria-hidden="true" />
             </summary>
             <div className="release-advanced-content">
-              <label className="field">测试模板<select value={draft.profile} onChange={(e) => updateDraft({ profile: e.target.value, functions: [] })}><option value="">配置默认模板</option>{config.test_profiles.map(p => <option key={p}>{p}</option>)}</select></label>
               <label className="field">
                 任务备注
                 <textarea

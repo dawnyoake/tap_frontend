@@ -557,3 +557,21 @@
     70% { transform: scale(.9925, 1.0075); }
   }
 }
+
+.release-pipeline-card > select,
+.release-pipeline-card .field select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 12px;
+  font-size: var(--text-body);
+}
+.release-test-reveal {
+  display: grid;
+  gap: 12px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.release-test-reveal > p:empty { display: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .release-test-reveal { animation: release-source-enter 220ms ease-out both; }
+}
