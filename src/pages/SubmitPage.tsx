@@ -56,6 +56,8 @@ function deviceStatus(device: Device) {
 
 function initialDraft(config: ConfigDetail) {
   return {
+    changeId: "",
+    profile: config.editable.test_profile,
     rootMR: config.editable.root_mr || "",
     rootCodePath: "",
     serial: config.editable.sn.length === 1 ? config.editable.sn[0] : "",
@@ -94,7 +96,7 @@ function PipelineConfig({
           {options.map((config) => (
             <option key={config.name} value={config.name}>
               {!config.label || config.label === config.name || config.label === config.name.replace(/\.json$/i, "")
-                ? config.name
+                ? config.name.replace(/\.json$/i, "")
                 : `${config.label} · ${config.name}`}
             </option>
           ))}
@@ -167,6 +169,11 @@ function SubmitConfiguration() {
 
 function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: ConfigDetail }) {
   const [draft, setDraft] = useState(() => initialDraft(config));
+  const { source } = submitRoute.useSearch();
+  const changeMode = source === "change-id";
+  const changeId = draft.changeId.match(/I[0-9a-fA-F]{40}(?![0-9a-fA-F])/)?.[0] ?? "";
+  const visibleStages = changeMode ? stages.slice(4) : stages;
+  const roots = useQuery({ queryKey: ["test-roots", picker.name, draft.profile], queryFn: () => api.testRoots(picker.name, draft.profile) });
   const [editingStages, setEditingStages] = useState(false);
   const client = useQueryClient();
   const navigate = useNavigate();
@@ -180,9 +187,9 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
     },
   });
 
-  const active = stages.filter((stage) => !draft.skip.includes(stage));
-  const skipped = stages.filter((stage) => draft.skip.includes(stage));
-  const stageRows = editingStages ? stages : active;
+  const active = visibleStages.filter((stage) => (changeMode && stage === "trigger") || !draft.skip.includes(stage));
+  const skipped = visibleStages.filter((stage) => draft.skip.includes(stage));
+  const stageRows = editingStages ? visibleStages : active;
   const StageRow = editingStages ? "label" : "div";
   const prepare = active.includes("prepare");
   const flash = active.includes("flash");
@@ -209,12 +216,12 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
     scanningDevices || needsDeviceChoice || selectedUnavailable
   );
   const deviceSummary = [selectedDevice?.product_model?.trim(), selectedSerial].filter(Boolean).join(" · ");
-  const testCases = [...new Set([
-    ...config.editable.functions,
-    ...Object.values(config.profile_details).flatMap((profile) => profile.functions),
-  ])];
+  const testCases = roots.data?.roots ?? [];
   const missingCases = test && draft.functions.length === 0;
-  const issue = !active.length
+  const issue = changeMode && !changeId
+    ? { target: "release-change-id", label: "填写合法的 Change-Id 或 Hibuild 链接" }
+    : test && (roots.isPending || roots.isError) ? { target: "release-test-range", label: "测试范围尚未加载成功" }
+    : !active.length
     ? { target: editingStages ? "release-first-stage" : "release-adjust-stages", label: "启用至少一个执行阶段" }
     : missingPath
       ? { target: "release-root-path", label: "填写 Root 代码路径" }
@@ -261,14 +268,16 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
       payload: {
         config: picker.name,
         overrides: {
+          change_id: changeId,
+          test: { skip_flash: !flash && test },
           root_mr: prepare ? draft.rootMR.trim() : "",
           mr_links: [],
           sn: usesDevice && selectedSerial ? [selectedSerial] : [],
-          test_profile: "",
+          test_profile: draft.profile,
           functions: test ? draft.functions : [],
           remark: draft.remark,
         },
-        stages: { from_stage: "prepare", only_stage: "", skip: draft.skip },
+        stages: { from_stage: changeMode ? "trigger" : "prepare", only_stage: "", skip: skipped.filter((stage) => !(changeMode && stage === "trigger")) },
       },
       rootCodePath: needsRootPath ? rootCodePath : undefined,
     });
@@ -299,6 +308,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
               {missingPath && <p id="release-path-error" className="release-problem">请填写 Root 代码路径。</p>}
             </section>
           )}
+          {changeMode && <section className="panel release-card"><h3>代码来源 · Change-Id</h3><input id="release-change-id" value={draft.changeId} onChange={(e) => updateDraft({ changeId: e.target.value })} placeholder="Hibuild 链接或 Change-Id" /></section>}
           {prepare && (
             <section className="panel release-card" aria-labelledby="release-source-title">
               <header>
@@ -400,6 +410,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
               <ChevronDown className="release-advanced-chevron" size={15} aria-hidden="true" />
             </summary>
             <div className="release-advanced-content">
+              <label className="field">测试模板<select value={draft.profile} onChange={(e) => updateDraft({ profile: e.target.value, functions: [] })}><option value="">配置默认模板</option>{config.test_profiles.map(p => <option key={p}>{p}</option>)}</select></label>
               <label className="field">
                 任务备注
                 <textarea
@@ -457,7 +468,7 @@ function TaskForm({ picker, config }: { picker: ConfigPickerProps; config: Confi
                               aria-label={stageLabels[stage]}
                               aria-describedby={summary ? summaryId : undefined}
                               checked={enabled}
-                              disabled={submit.isPending}
+                              disabled={submit.isPending || (changeMode && stage === "trigger")}
                               onChange={(event) => toggleStage(stage, event.target.checked)}
                             />
                           </span>

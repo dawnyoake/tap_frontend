@@ -95,6 +95,8 @@ export interface Config {
 }
 export interface ConfigDetail {
   editable: {
+    change_id?: string;
+    test?: { skip_flash: boolean };
     root_mr: string;
     sn: string[];
     test_profile: string;
@@ -110,6 +112,8 @@ export interface ConfigDetail {
 export interface SubmitTaskInput {
   config: string;
   overrides: {
+    change_id?: string;
+    test?: { skip_flash: boolean };
     root_mr: string;
     mr_links: string[];
     sn: string[];
@@ -131,6 +135,7 @@ export interface PipelineApi {
     error: string;
   }>;
   configs(): Promise<{ configs: Config[] }>;
+  testRoots(name: string, profile: string): Promise<{ roots: string[] }>;
   config(name: string): Promise<ConfigDetail>;
   submit(body: SubmitTaskInput): Promise<{ run_id: string }>;
   remove(id: string): Promise<unknown>;

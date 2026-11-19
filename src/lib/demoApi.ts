@@ -194,6 +194,7 @@ export const demoApi: Omit<PipelineApi, "submit"> & {
       { name: "cfg-****-smoke.json", label: "cfg-****-smoke" },
     ],
   }),
+  testRoots: async (_name, profile) => ({ roots: config.profile_details[profile]?.functions ?? config.editable.functions }),
   config: async () => config,
   submit: async (payload, rootCodePath) => {
     const id = `run-20261114-${String(nextRunNumber++).padStart(3, "0")}`;

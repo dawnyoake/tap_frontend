@@ -48,6 +48,7 @@ const liveApi: PipelineApi = {
   runs: (query) => request("/api/runs" + query),
   detail: (id) => request("/api/status?run=" + encodeURIComponent(id)),
   devices: () => request("/api/devices"),
+  testRoots: (name, profile) => request("/api/test-roots?" + new URLSearchParams({ config: name, profile })),
   configs: () => request("/api/configs"),
   config: (name) => request("/api/configs/" + encodeURIComponent(name)),
   submit: (body) => request("/api/tasks", body),

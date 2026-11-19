@@ -547,3 +547,13 @@
   .release-stage-list { margin-top: 10px; }
   .release-layout-loading { grid-template-areas: "base"; }
 }
+
+@media (prefers-reduced-motion: no-preference) {
+  .release-publish .cta:not(:disabled) { animation: release-ready 420ms ease-out; }
+  .release-fix { animation: release-source-enter 180ms ease-out; }
+  @keyframes release-ready {
+    0%, 100% { transform: scale(1); }
+    40% { transform: scale(1.0225, .9775); }
+    70% { transform: scale(.9925, 1.0075); }
+  }
+}
